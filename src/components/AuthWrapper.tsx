@@ -1,25 +1,23 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { Box, CircularProgress, Typography } from '@mui/material';
 
-export default function Home() {
-  const { isAuthenticated, isLoading } = useAuthStore();
-  const router = useRouter();
+interface AuthWrapperProps {
+  children: React.ReactNode;
+  requireAuth?: boolean;
+}
+
+export default function AuthWrapper({ children, requireAuth = true }: AuthWrapperProps) {
+  const { isAuthenticated } = useAuthStore();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (!isLoading) {
-      if (isAuthenticated) {
-        router.push('/chat');
-      } else {
-        router.push('/login');
-      }
-    }
-  }, [isAuthenticated, isLoading, router]);
+    setMounted(true);
+  }, []);
 
-  if (isLoading) {
+  if (!mounted) {
     return (
       <Box
         sx={{
@@ -39,5 +37,13 @@ export default function Home() {
     );
   }
 
-  return null;
+  if (requireAuth && !isAuthenticated) {
+    return null; // Will be redirected by middleware
+  }
+
+  if (!requireAuth && isAuthenticated) {
+    return null; // Will be redirected by middleware
+  }
+
+  return <>{children}</>;
 }
