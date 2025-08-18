@@ -43,8 +43,12 @@ export const useAuthStore = create<AuthStore>()(
         set({ isLoading: true, errorMessage: null });
         try {
           const response = await chatGatewayAPI.login(credentials);
+          console.log("🚀 ~ response:", response)
 
           const { user, token } = response;
+          if(!user || !token) {
+            throw new Error('Login failed');
+          }
           
           set({
             user,
