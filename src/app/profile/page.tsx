@@ -15,27 +15,26 @@ import {
 } from '@mui/material';
 import {
   ContentCopy as CopyIcon,
-  Visibility as VisibilityIcon,
-  VisibilityOff as VisibilityOffIcon,
   Security as SecurityIcon,
   Person as PersonIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '../../stores/authStore';
 import AuthWrapper from '../../components/AuthWrapper';
+import { useRouter } from 'next/navigation';
 
 const Profile: React.FC = () => {
   const { user, updateUser } = useAuthStore();
-  const [showSeedPhrase, setShowSeedPhrase] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     username: user?.username || '',
   });
+  const router = useRouter();
 
   const handleCopySeedPhrase = async () => {
-    if (user?.publicKey) {
+    if (user?.seedPhrase) {
       try {
-        await navigator.clipboard.writeText(user.publicKey);
+        await navigator.clipboard.writeText(user.seedPhrase);
         setCopySuccess(true);
         setTimeout(() => setCopySuccess(false), 3000);
       } catch (err) {
@@ -78,12 +77,23 @@ const Profile: React.FC = () => {
     <AuthWrapper requireAuth={true}>
       <Container maxWidth="md">
         <Box sx={{ mt: 4, mb: 4 }}>
-          <Typography variant="h4" component="h1" gutterBottom color="primary">
-            Profile Settings
-          </Typography>
-          <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-            Manage your account settings and security information
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Box>
+              <Typography variant="h4" component="h1" gutterBottom color="primary">
+                Profile Settings
+              </Typography>
+              <Typography variant="body1" color="text.secondary">
+                Manage your account settings and security information
+              </Typography>
+            </Box>
+            <Button
+              variant="outlined"
+              onClick={() => router.push('/chat')}
+              sx={{ minWidth: 120 }}
+            >
+              Back to Chat
+            </Button>
+          </Box>
 
           <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3 }}>
             {/* Profile Information */}
@@ -146,70 +156,55 @@ const Profile: React.FC = () => {
                     <SecurityIcon sx={{ mr: 1, color: 'primary.main' }} />
                     <Typography variant="h6">Security & Keys</Typography>
                   </Box>
-                  
-                  <Box sx={{ mb: 3 }}>
-                    <Typography variant="body2" color="text.secondary" gutterBottom>
-                      Public Key
-                    </Typography>
-                    <Typography 
-                      variant="body2" 
-                      sx={{ 
-                        fontFamily: 'monospace', 
-                        backgroundColor: 'grey.100', 
-                        p: 1, 
-                        borderRadius: 1,
-                        wordBreak: 'break-all'
-                      }}
-                    >
-                      {user.publicKey}
-                    </Typography>
-                  </Box>
+
+                  {user.derivedPublicKey && (
+                    <Box sx={{ mb: 3 }}>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Derived Public Key (From Seed Phrase)
+                      </Typography>
+                      <Typography 
+                        variant="body2" 
+                        sx={{ 
+                          fontFamily: 'monospace', 
+                          backgroundColor: 'blue.50', 
+                          p: 1, 
+                          borderRadius: 1,
+                          wordBreak: 'break-all'
+                        }}
+                      >
+                        {user.derivedPublicKey}
+                      </Typography>
+                    </Box>
+                  )}
 
                   <Box sx={{ mb: 3 }}>
                     <Typography variant="body2" color="text.secondary" gutterBottom>
-                      Seed Phrase (Private Key)
+                      Seed Phrase
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                       ⚠️ Keep this secret! Anyone with access to your seed phrase can control your account.
                     </Typography>
                     
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                      <IconButton
-                        onClick={() => setShowSeedPhrase(!showSeedPhrase)}
-                        color="primary"
-                        size="small"
-                      >
-                        {showSeedPhrase ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                      </IconButton>
-                      <Typography variant="body2" color="text.secondary">
-                        {showSeedPhrase ? 'Hide' : 'Show'} seed phrase
-                      </Typography>
-                    </Box>
-
-                    {showSeedPhrase && (
-                      <Box>
-                        <TextField
-                          fullWidth
-                          multiline
-                          rows={3}
-                          value={user.publicKey} // Using publicKey as placeholder for seed phrase
-                          InputProps={{
-                            readOnly: true,
-                            style: { fontFamily: 'monospace', fontSize: '12px' }
-                          }}
-                          sx={{ mb: 2 }}
-                        />
-                        
-                        <Button
-                          variant="contained"
-                          startIcon={<CopyIcon />}
-                          onClick={handleCopySeedPhrase}
-                          size="small"
-                        >
-                          Copy to Clipboard
-                        </Button>
-                      </Box>
-                    )}
+                    <TextField
+                      fullWidth
+                      multiline
+                      rows={3}
+                      value={user.seedPhrase || 'No seed phrase available'}
+                      InputProps={{
+                        readOnly: true,
+                        style: { fontFamily: 'monospace', fontSize: '12px' }
+                      }}
+                      sx={{ mb: 2 }}
+                    />
+                    
+                    <Button
+                      variant="contained"
+                      startIcon={<CopyIcon />}
+                      onClick={handleCopySeedPhrase}
+                      size="small"
+                    >
+                      Copy to Clipboard
+                    </Button>
                   </Box>
 
                   <Alert severity="warning">

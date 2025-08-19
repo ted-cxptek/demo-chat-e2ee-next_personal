@@ -20,6 +20,7 @@ import AuthWrapper from '../../components/AuthWrapper';
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [seedPhrase, setSeedPhrase] = useState('');
   
   const { login, isLoading, errorMessage, successMessage, clearError, clearSuccess } = useAuthStore();
   const router = useRouter();
@@ -41,12 +42,17 @@ const Login: React.FC = () => {
     if (errorMessage) clearError(); // Clear error when user starts typing
   };
 
+  const handleSeedPhraseChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSeedPhrase(e.target.value);
+    if (errorMessage) clearError(); // Clear error when user starts typing
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     clearError(); // Clear any previous errors
     
     try {
-      await login({ username, password });
+      await login({ username, password, seedPhrase });
       // AuthWrapper will automatically redirect to /chat when isAuthenticated becomes true
       // No need to manually call router.push('/chat')
     } catch (err) {
@@ -149,6 +155,23 @@ const Login: React.FC = () => {
                 onChange={handlePasswordChange}
                 sx={{ mb: 3 }}
               />
+              <TextField
+                margin="normal"
+                required
+                fullWidth
+                name="seedPhrase"
+                label="Seed Phrase"
+                type="password"
+                id="seedPhrase"
+                autoComplete="seedPhrase"
+                value={seedPhrase}
+                onChange={handleSeedPhraseChange}
+                sx={{ mb: 1 }}
+                placeholder="Enter your 12-word seed phrase"
+              />
+              <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+                💡 Enter the 12-word seed phrase you received during registration
+              </Typography>
               <Button
                 type="submit"
                 fullWidth
@@ -177,7 +200,7 @@ const Login: React.FC = () => {
 
               <Box sx={{ mt: 2, textAlign: 'center' }}>
                 <Typography variant="caption" color="text.secondary">
-                  Demo credentials: alice / password
+                  Demo: Use any username/password and a valid 12-word seed phrase
                 </Typography>
               </Box>
             </Box>

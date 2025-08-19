@@ -2,6 +2,8 @@ export interface User {
   id: string;
   username: string;
   publicKey: string;
+  seedPhrase?: string; // Optional for backward compatibility
+  derivedPublicKey?: string; // The actual public key derived from seed phrase
   createdAt: Date;
   lastSeen?: Date;
 }
@@ -35,12 +37,15 @@ export interface AuthState {
 export interface LoginCredentials {
   username: string;
   password: string;
+  seedPhrase: string;
 }
 
 export interface RegisterCredentials {
   username: string;
   password: string;
   confirmPassword: string;
+  seedPhrase: string;
+  derivedPublicKey: string;
 }
 
 export interface ChatState {
