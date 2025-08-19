@@ -54,11 +54,14 @@ export const useAuthStore = create<AuthStore>()(
           const { seedPhrase } = credentials;
           
           // Update user object with crypto data
+          // For login, we derive the public key from the provided seed phrase
+          // This should match what was stored during registration
           const enhancedUser = seedPhrase ? {
             ...user,
             seedPhrase: seedPhrase,
             publicKey: derivePublicKeyFromSeedPhrase(seedPhrase),
           } : user;
+          
           
           set({
             user: enhancedUser,
@@ -68,6 +71,8 @@ export const useAuthStore = create<AuthStore>()(
             errorMessage: null,
             successMessage: 'Login successful! Redirecting...',
           });
+          
+
         } catch (error) {
           const fallbackMessage = error instanceof Error ? error.message : 'Login failed';
           set({ isLoading: false, errorMessage: fallbackMessage });
@@ -91,14 +96,24 @@ export const useAuthStore = create<AuthStore>()(
 
           const { user, token } = response;
           
-          // Create enhanced user object with seed phrase and public key
+          // Create enhanced user object with the GENERATED seed phrase and public key
+          // NOT the API response data, since we want to store our generated crypto data
           const enhancedUser: User = {
             id: response.user.id,
             username: response.user.username,
-            publicKey: response.user.publicKey,
+            publicKey: publicKey,        // Use GENERATED public key, not API response
             createdAt: response.user.createdAt,
-            seedPhrase: credentials.seedPhrase,
+            seedPhrase: seedPhrase,      // Use GENERATED seed phrase, not credentials
           };
+          
+          console.log('🔐 Registration - Enhanced user object:', {
+            id: enhancedUser.id,
+            username: enhancedUser.username,
+            hasSeedPhrase: !!enhancedUser.seedPhrase,
+            hasPublicKey: !!enhancedUser.publicKey,
+            seedPhrasePreview: enhancedUser.seedPhrase?.substring(0, 20) + '...',
+            publicKeyPreview: enhancedUser.publicKey?.substring(0, 20) + '...'
+          });
           
           set({
             user: enhancedUser,
@@ -108,6 +123,8 @@ export const useAuthStore = create<AuthStore>()(
             errorMessage: null,
             successMessage: 'Registration successful! Redirecting...',
           });
+          
+          console.log('🔐 Registration - User data saved to store successfully');
         } catch (error) {
           if (error instanceof ApiError) {
             // Handle ApiError specifically
