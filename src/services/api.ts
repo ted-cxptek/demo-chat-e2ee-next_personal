@@ -156,6 +156,12 @@ const parseOnionResponse = <T>(response: string): T => {
     if (hasError(parseChatResponse.data)) {
       throw ApiError.fromChatResponse(parseChatResponse);
     }
+    if(parseChatResponse.statusCode >= 400) {
+      throw new ApiError(
+        parseChatResponse.data as string,
+        parseChatResponse.statusCode.toString()
+      );
+    }
     
     return parseChatResponse.data as T;
   } catch (parseError) {

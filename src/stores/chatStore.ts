@@ -108,8 +108,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       
       if (!token) throw new Error('No authentication token');
       
+      // TODO: Length of content is odd, so we add a space to make it even
+      // Error: Cannot get GET
+      const newContent = content.length % 2 === 1 ? content + ' ' : content;
       // Send message via API
-      const newMessage = await chatGatewayAPI.sendMessage(token, conversationId, content) as Message;
+      const newMessage = await chatGatewayAPI.sendMessage(token, conversationId, newContent) as Message;
       
       // Normalize the message if needed (convert 'sender' to 'senderId')
       let normalizedMessage = {
@@ -123,6 +126,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     } catch (error) {
       console.error('Failed to send message:', error);
       throw error;
+      
     } finally {
       set({ isSendingMessage: false });
     }
