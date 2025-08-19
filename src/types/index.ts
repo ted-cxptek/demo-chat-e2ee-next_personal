@@ -11,16 +11,19 @@ export interface User {
 export interface Message {
   id: string;
   conversationId: string;
-  sender: string; // Changed from senderId to match API
-  receiverId?: string; // Added to match API
+  sender?: string; // Primary field for sender ID (used by Fetch Messages)
+  senderId: string; // Primary field for sender ID (used by WebSocket)
+  // Note: API responses might use 'sender' instead of 'senderId'
+  // The chatStore normalizes 'sender' to 'senderId' for consistency
+  receiverId?: string; // Added to match WebSocket message
   content: string;
-  contentForSender?: string; // Added to match API
-  messageType: 'text' | 'image' | 'file'; // Added to match API
-  isEncrypted: boolean; // Added to match API
-  status: 'sent' | 'delivered' | 'read'; // Added to match API
-  createdAt: string; // Changed from Date to string to match API
-  updatedAt: string; // Added to match API
-  // Removed timestamp and isRead as they don't exist in API
+  contentForSender?: string; // Added to match WebSocket message
+  messageType: 'text' | 'image' | 'file'; // Added to match WebSocket message
+  isEncrypted: boolean; // Added to match WebSocket message
+  status?: 'sent' | 'delivered' | 'read'; // Made optional as it's not in WebSocket message
+  createdAt: string; // Changed from Date to string to match WebSocket message
+  updatedAt?: string; // Made optional as it's not in WebSocket message
+  // Removed timestamp and isRead as they don't exist in WebSocket message
 }
 
 export interface Conversation {

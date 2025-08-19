@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { ChatState, Conversation, Message, User } from '../types';
 import { chatGatewayAPI } from '../services/api';
+import { websocketService } from '../services/websocketService';
 
 interface ChatStore extends ChatState {
   setConversations: (conversations: Conversation[]) => void;
@@ -15,6 +16,9 @@ interface ChatStore extends ChatState {
   sendMessage: (conversationId: string, content: string) => Promise<Message>;
   fetchConversations: () => Promise<void>;
   fetchMessages: (conversationId: string) => Promise<void>;
+  connectWebSocket: () => void;
+  disconnectWebSocket: () => void;
+  handleIncomingMessage: (message: Message) => void;
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
@@ -107,9 +111,15 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       // Send message via API
       const newMessage = await chatGatewayAPI.sendMessage(token, conversationId, content) as Message;
       
+      // Normalize the message if needed (convert 'sender' to 'senderId')
+      let normalizedMessage = {
+        ...newMessage,
+        senderId: newMessage.sender || newMessage.senderId
+      };
+      
       // Add to local store
-      get().addMessage(newMessage);
-      return newMessage;
+      get().addMessage(normalizedMessage);
+      return normalizedMessage;
     } catch (error) {
       console.error('Failed to send message:', error);
       throw error;
@@ -158,15 +168,106 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       // Handle the API response structure
       if (response && typeof response === 'object' && 'messages' in response) {
         const messages = response.messages || [];
-        set({ messages, isLoading: false });
+        
+        // Normalize messages: convert 'sender' to 'senderId' if needed
+        const normalizedMessages = messages.map((msg: any) => {          
+          return {
+            ...msg,
+            senderId: msg.sender || msg.senderId
+          };
+        });
+        
+        set({ messages: normalizedMessages, isLoading: false });
       } else {
         // Fallback if response structure is different
         const messages = Array.isArray(response) ? response : [];
+
         set({ messages, isLoading: false });
       }
     } catch (error) {
       console.error('Failed to fetch messages:', error);
       set({ isLoading: false });
     }
+  },
+
+  // WebSocket methods
+  connectWebSocket: () => {
+    try {
+      const authState = JSON.parse(localStorage.getItem('auth-storage') || '{}');
+      const token = authState.state?.token;
+      const user = authState.state?.user;
+      
+      if (!token) {
+        console.warn('No authentication token available for WebSocket connection');
+        return;
+      }
+
+      if (!user) {
+        console.warn('No user data available for WebSocket connection');
+        return;
+      }
+
+      // Set up message handler for incoming messages
+      websocketService.onMessage(get().handleIncomingMessage);
+      
+      // Connect to WebSocket with user ID for automatic login
+      websocketService.connect(token, user.username);
+      
+    } catch (error) {
+      console.error('Failed to connect WebSocket:', error);
+    }
+  },
+
+  disconnectWebSocket: () => {
+    try {
+      websocketService.disconnect();
+    } catch (error) {
+      console.error('Failed to disconnect WebSocket:', error);
+    }
+  },
+
+  handleIncomingMessage: (message: Message) => {    
+    // Get current user ID from auth store
+    const authState = JSON.parse(localStorage.getItem('auth-storage') || '{}');
+    const currentUserId = authState.state?.user?.id;
+    
+    // Don't skip messages sent by current user - WebSocket should deliver to both sender and receiver
+    
+    set((state) => {
+      // Check if this message is for the current conversation
+      const isCurrentConversation = state.currentConversation?.id === message.conversationId;
+      
+      // Add message to messages array if it doesn't already exist
+      const messageExists = state.messages.some(m => m.id === message.id);
+      if (messageExists) {
+        return state;
+      }
+
+      const newMessages = [...state.messages, message];
+      
+      // Update conversations with new message
+      const updatedConversations = state.conversations.map(conv => {
+        if (conv.id === message.conversationId) {
+          return {
+            ...conv,
+            lastMessage: message,
+            unreadCount: conv.unreadCount + 1,
+            updatedAt: new Date()
+          };
+        }
+        return conv;
+      });
+
+      // Update current conversation if it's the active one
+      const updatedCurrentConversation = isCurrentConversation && state.currentConversation
+        ? { ...state.currentConversation, lastMessage: message, updatedAt: new Date() }
+        : state.currentConversation;
+
+      return {
+        messages: newMessages,
+        conversations: updatedConversations,
+        currentConversation: updatedCurrentConversation
+      };
+    });
   },
 }));

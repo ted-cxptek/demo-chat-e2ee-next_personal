@@ -38,6 +38,7 @@ import { useRouter } from 'next/navigation';
 import { User, Conversation } from '../../types';
 import AuthWrapper from '../../components/AuthWrapper';
 import { useNotification } from '../../contexts/NotificationContext';
+import { websocketService } from '../../services/websocketService';
 
 const drawerWidth = 320;
 
@@ -56,6 +57,8 @@ const Chat: React.FC = () => {
     fetchMessages,
     isLoading,
     isSendingMessage,
+    connectWebSocket,
+    disconnectWebSocket,
   } = useChatStore();
 
   const [message, setMessage] = useState('');
@@ -64,6 +67,7 @@ const Chat: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [wsConnectionStatus, setWsConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting' | 'error'>('disconnected');
 
   // Use the notification context
   const { showSnackbar } = useNotification();
@@ -97,6 +101,33 @@ const Chat: React.FC = () => {
       fetchConversations();
     }
   }, [conversations.length, fetchConversations]);
+
+  // Connect to WebSocket when component mounts
+  useEffect(() => {
+    connectWebSocket();
+    
+    // Listen for WebSocket status changes
+    const handleStatusChange = (status: 'connected' | 'disconnected' | 'error') => {
+      setWsConnectionStatus(status);
+      
+      // Show notifications for important status changes
+      if (status === 'connected') {
+        showSnackbar('WebSocket connected - Real-time messaging active', 'success');
+      } else if (status === 'disconnected') {
+        showSnackbar('WebSocket disconnected - Messages may be delayed', 'warning');
+      } else if (status === 'error') {
+        showSnackbar('WebSocket connection error', 'error');
+      }
+    };
+    
+    websocketService.onStatusChange(handleStatusChange);
+    
+    // Cleanup WebSocket connection when component unmounts
+    return () => {
+      websocketService.removeStatusHandler(handleStatusChange);
+      disconnectWebSocket();
+    };
+  }, [connectWebSocket, disconnectWebSocket, showSnackbar]);
 
   // Fetch messages for current conversation when it changes
   useEffect(() => {
@@ -270,6 +301,28 @@ const Chat: React.FC = () => {
                 ? currentConversation.participants.find(p => p.id !== user?.id)?.username
                 : 'Select a conversation'}
             </Typography>
+            
+            {/* WebSocket Connection Status */}
+            <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
+              <Box
+                sx={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  backgroundColor: 
+                    wsConnectionStatus === 'connected' ? 'success.main' :
+                    wsConnectionStatus === 'connecting' ? 'warning.main' :
+                    wsConnectionStatus === 'error' ? 'error.main' : 'grey.500',
+                  mr: 1,
+                }}
+              />
+              <Typography variant="caption" sx={{ color: 'inherit', opacity: 0.8 }}>
+                {wsConnectionStatus === 'connected' ? 'Live' :
+                 wsConnectionStatus === 'connecting' ? 'Connecting...' :
+                 wsConnectionStatus === 'error' ? 'Error' : 'Offline'}
+              </Typography>
+            </Box>
+            
             <IconButton 
               color="inherit" 
               onClick={() => router.push('/profile')}
@@ -341,30 +394,37 @@ const Chat: React.FC = () => {
                     {messages
                       .filter(m => m.conversationId === currentConversation.id)
                       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) // Sort by timestamp (oldest first)
-                      .map((msg) => (
-                        <Box
-                          key={msg.id}
-                          sx={{
-                            display: 'flex',
-                            justifyContent: msg.sender === user?.id ? 'flex-end' : 'flex-start',
-                            mb: 1,
-                          }}
-                        >
-                          <Paper
+                      .map((msg) => {
+                        // MESSAGE ALIGNMENT LOGIC:
+                        // - RIGHT SIDE (flex-end): Messages sent by current user (msg.senderId === user?.id)
+                        // - LEFT SIDE (flex-start): Messages sent by other users (msg.senderId !== user?.id)
+                        const isCurrentUserMessage = msg.senderId === user?.id;
+                        
+                        return (
+                          <Box
+                            key={msg.id}
                             sx={{
-                              p: 1.5,
-                              maxWidth: '70%',
-                              backgroundColor: msg.sender === user?.id ? 'primary.main' : 'grey.100',
-                              color: msg.sender === user?.id ? 'white' : 'text.primary',
+                              display: 'flex',
+                              justifyContent: isCurrentUserMessage ? 'flex-end' : 'flex-start',
+                              mb: 1,
                             }}
                           >
-                            <Typography variant="body2">{msg.content}</Typography>
-                            <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                              {formatMessageTime(msg.createdAt)}
-                            </Typography>
-                          </Paper>
-                        </Box>
-                      ))}
+                            <Paper
+                              sx={{
+                                p: 1.5,
+                                maxWidth: '70%',
+                                backgroundColor: isCurrentUserMessage ? 'primary.main' : 'grey.100',
+                                color: isCurrentUserMessage ? 'white' : 'text.primary',
+                              }}
+                            >
+                              <Typography variant="body2">{msg.content}</Typography>
+                              <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                                {formatMessageTime(msg.createdAt)}
+                              </Typography>
+                            </Paper>
+                          </Box>
+                        );
+                      })}
                     <div ref={messagesEndRef} />
                   </>
                 )}
