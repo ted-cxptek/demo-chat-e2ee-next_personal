@@ -22,6 +22,7 @@ import {
   DialogActions,
   Chip,
   Paper,
+  CircularProgress,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -36,6 +37,7 @@ import { useChatStore } from '../../stores/chatStore';
 import { useRouter } from 'next/navigation';
 import { User, Conversation } from '../../types';
 import AuthWrapper from '../../components/AuthWrapper';
+import { useNotification } from '../../contexts/NotificationContext';
 
 const drawerWidth = 320;
 
@@ -50,44 +52,25 @@ const Chat: React.FC = () => {
     setCurrentConversation,
     sendMessage,
     createNewConversation,
-    markConversationAsRead,
+    fetchConversations,
+    isLoading,
   } = useChatStore();
 
   const [message, setMessage] = useState('');
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
-  const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
+  const [selectedUsername, setSelectedUsername] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isCreatingConversation, setIsCreatingConversation] = useState(false);
 
-  // Mock users for demo - replace with actual user search
-  const mockUsers = useMemo(() => [
-    { id: '2', username: 'alice', publicKey: 'key2', createdAt: new Date() },
-    { id: '3', username: 'bob', publicKey: 'key3', createdAt: new Date() },
-    { id: '4', username: 'charlie', publicKey: 'key4', createdAt: new Date() },
-  ], []);
+  // Use the notification context
+  const { showSnackbar } = useNotification();
 
   useEffect(() => {
-    // Load mock conversations on component mount
+    // Fetch real conversations from API
     if (conversations.length === 0) {
-      const mockConversations = mockUsers.map((user, index) => ({
-        id: `conv_${index + 1}`,
-        participants: [user, user!],
-        unreadCount: Math.floor(Math.random() * 5),
-        createdAt: new Date(Date.now() - Math.random() * 10000000000),
-        updatedAt: new Date(),
-        lastMessage: {
-          id: `msg_${index + 1}`,
-          conversationId: `conv_${index + 1}`,
-          senderId: user.id,
-          content: `Hello! This is a sample message from ${user.username}`,
-          timestamp: new Date(Date.now() - Math.random() * 1000000000),
-          isRead: false,
-        },
-      }));
-      
-      // Set mock conversations in the store
-      setConversations(mockConversations);
+      fetchConversations();
     }
-  }, [conversations.length, setConversations, mockUsers]);
+  }, [conversations.length, fetchConversations]);
 
   const handleSendMessage = async () => {
     if (!message.trim() || !currentConversation) return;
@@ -101,21 +84,37 @@ const Chat: React.FC = () => {
   };
 
   const handleNewChat = async () => {
-    if (selectedUsers.length === 0) return;
+    if (!selectedUsername.trim()) return;
 
+    setIsCreatingConversation(true);
     try {
-      const newConversation = await createNewConversation(selectedUsers);
+      // Create conversation using the API with receiverUsername
+      const newConversation = await createNewConversation(selectedUsername);
       setCurrentConversation(newConversation);
       setIsNewChatOpen(false);
-      setSelectedUsers([]);
+      setSelectedUsername('');
+      
+      // Refresh conversations list to show the new one
+      await fetchConversations();
+      showSnackbar('Conversation started!');
     } catch (error) {
-      console.error('Failed to create conversation:', error);
+
+      // Show specific error message if available
+      let errorMessage = 'Failed to start conversation.';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && error !== null && 'message' in error) {
+        errorMessage = String(error.message);
+      }
+      
+      showSnackbar(errorMessage, 'error');
+    } finally {
+      setIsCreatingConversation(false);
     }
   };
 
   const handleConversationSelect = (conversation: Conversation) => {
     setCurrentConversation(conversation);
-    markConversationAsRead(conversation.id);
     setMobileOpen(false);
   };
 
@@ -131,46 +130,71 @@ const Chat: React.FC = () => {
         >
           New Chat
         </Button>
+        <Button
+          variant="outlined"
+          fullWidth
+          onClick={fetchConversations}
+          disabled={isLoading}
+          sx={{ mb: 2 }}
+        >
+          {isLoading ? 'Refreshing...' : 'Refresh Conversations'}
+        </Button>
         <Typography variant="h6" noWrap component="div">
           Conversations
         </Typography>
       </Box>
       <List>
-        {conversations.map((conversation) => {
-          const otherParticipant = conversation.participants.find(p => p.id !== user?.id);
-          return (
-            <ListItem
-              key={conversation.id}
-              onClick={() => handleConversationSelect(conversation)}
-              sx={{
-                cursor: 'pointer',
-                backgroundColor: currentConversation?.id === conversation.id ? 'primary.light' : 'transparent',
-                '&:hover': {
-                  backgroundColor: currentConversation?.id === conversation.id ? 'primary.light' : 'action.hover',
-                },
-              }}
-            >
-              <ListItemAvatar>
-                <Badge
-                  badgeContent={conversation.unreadCount}
-                  color="error"
-                  invisible={conversation.unreadCount === 0}
-                >
-                  <Avatar>
-                    <PersonIcon />
-                  </Avatar>
-                </Badge>
-              </ListItemAvatar>
-              <ListItemText
-                primary={otherParticipant?.username || 'Unknown User'}
-                secondary={conversation.lastMessage?.content || 'No messages yet'}
-                primaryTypographyProps={{
-                  fontWeight: conversation.unreadCount > 0 ? 'bold' : 'normal',
+        {isLoading ? (
+          <ListItem>
+            <ListItemText
+              primary="Loading conversations..."
+              secondary="Please wait while we fetch your conversations"
+            />
+          </ListItem>
+        ) : conversations.length === 0 ? (
+          <ListItem>
+            <ListItemText
+              primary="No conversations yet"
+              secondary="Start a new chat to begin messaging"
+            />
+          </ListItem>
+        ) : (
+          conversations.map((conversation) => {
+            const otherParticipant = conversation.participants.find(p => p.id !== user?.id);
+            return (
+              <ListItem
+                key={conversation.id}
+                onClick={() => handleConversationSelect(conversation)}
+                sx={{
+                  cursor: 'pointer',
+                  backgroundColor: currentConversation?.id === conversation.id ? 'primary.light' : 'transparent',
+                  '&:hover': {
+                    backgroundColor: currentConversation?.id === conversation.id ? 'primary.light' : 'action.hover',
+                  },
                 }}
-              />
-            </ListItem>
-          );
-        })}
+              >
+                <ListItemAvatar>
+                  <Badge
+                    badgeContent={conversation.unreadCount}
+                    color="error"
+                    invisible={conversation.unreadCount === 0}
+                  >
+                    <Avatar>
+                      <PersonIcon />
+                    </Avatar>
+                  </Badge>
+                </ListItemAvatar>
+                <ListItemText
+                  primary={otherParticipant?.username || 'Unknown User'}
+                  secondary={conversation.lastMessage?.content || 'No messages yet'}
+                  primaryTypographyProps={{
+                    fontWeight: conversation.unreadCount > 0 ? 'bold' : 'normal',
+                  }}
+                />
+              </ListItem>
+            );
+          })
+        )}
       </List>
     </Box>
   );
@@ -263,7 +287,7 @@ const Chat: React.FC = () => {
                       key={msg.id}
                       sx={{
                         display: 'flex',
-                        justifyContent: msg.senderId === user?.id ? 'flex-end' : 'flex-start',
+                        justifyContent: msg.sender === user?.id ? 'flex-end' : 'flex-start',
                         mb: 1,
                       }}
                     >
@@ -271,8 +295,8 @@ const Chat: React.FC = () => {
                         sx={{
                           p: 1.5,
                           maxWidth: '70%',
-                          backgroundColor: msg.senderId === user?.id ? 'primary.main' : 'grey.100',
-                          color: msg.senderId === user?.id ? 'white' : 'text.primary',
+                          backgroundColor: msg.sender === user?.id ? 'primary.main' : 'grey.100',
+                          color: msg.sender === user?.id ? 'white' : 'text.primary',
                         }}
                       >
                         <Typography variant="body2">{msg.content}</Typography>
@@ -324,38 +348,45 @@ const Chat: React.FC = () => {
         </Box>
 
         {/* New Chat Dialog */}
-        <Dialog open={isNewChatOpen} onClose={() => setIsNewChatOpen(false)} maxWidth="sm" fullWidth>
+        <Dialog 
+          open={isNewChatOpen} 
+          onClose={() => !isCreatingConversation && setIsNewChatOpen(false)} 
+          maxWidth="sm" 
+          fullWidth
+        >
           <DialogTitle>Start New Conversation</DialogTitle>
           <DialogContent>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Select users to start a conversation with:
+              Enter the username of the person you want to chat with:
             </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-              {mockUsers.map((user) => (
-                <Chip
-                  key={user.id}
-                  label={user.username}
-                  onClick={() => {
-                    if (selectedUsers.find(u => u.id === user.id)) {
-                      setSelectedUsers(selectedUsers.filter(u => u.id !== user.id));
-                    } else {
-                      setSelectedUsers([...selectedUsers, user]);
-                    }
-                  }}
-                  color={selectedUsers.find(u => u.id === user.id) ? 'primary' : 'default'}
-                  clickable
-                />
-              ))}
-            </Box>
+            <TextField
+              fullWidth
+              label="Username"
+              placeholder="Enter username (e.g., bob)"
+              value={selectedUsername}
+              onChange={(e) => setSelectedUsername(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && !isCreatingConversation && handleNewChat()}
+              disabled={isCreatingConversation}
+              sx={{ mb: 2 }}
+            />
+            <Typography variant="caption" color="text.secondary">
+              💡 The conversation will be created automatically if it doesn't exist
+            </Typography>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setIsNewChatOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={() => setIsNewChatOpen(false)} 
+              disabled={isCreatingConversation}
+            >
+              Cancel
+            </Button>
             <Button
               onClick={handleNewChat}
               variant="contained"
-              disabled={selectedUsers.length === 0}
+              disabled={!selectedUsername.trim() || isCreatingConversation}
+              startIcon={isCreatingConversation ? <CircularProgress size={20} /> : undefined}
             >
-              Start Chat
+              {isCreatingConversation ? 'Creating...' : 'Start Chat'}
             </Button>
           </DialogActions>
         </Dialog>

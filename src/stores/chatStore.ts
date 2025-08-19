@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { ChatState, Conversation, Message, User } from '../types';
+import { chatGatewayAPI } from '../services/api';
 
 interface ChatStore extends ChatState {
   setConversations: (conversations: Conversation[]) => void;
@@ -8,12 +9,10 @@ interface ChatStore extends ChatState {
   setCurrentConversation: (conversation: Conversation | null) => void;
   setMessages: (messages: Message[]) => void;
   addMessage: (message: Message) => void;
-  updateMessage: (messageId: string, updates: Partial<Message>) => void;
-  markMessageAsRead: (messageId: string) => void;
-  markConversationAsRead: (conversationId: string) => void;
   setLoading: (loading: boolean) => void;
-  createNewConversation: (participants: User[]) => Promise<Conversation>;
+  createNewConversation: (receiverUsername: string) => Promise<Conversation>;
   sendMessage: (conversationId: string, content: string) => Promise<Message>;
+  fetchConversations: () => Promise<void>;
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
@@ -70,63 +69,70 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     });
   },
 
-  updateMessage: (messageId: string, updates: Partial<Message>) =>
-    set((state) => ({
-      messages: state.messages.map(msg =>
-        msg.id === messageId ? { ...msg, ...updates } : msg
-      )
-    })),
-
-  markMessageAsRead: (messageId: string) =>
-    set((state) => ({
-      messages: state.messages.map(msg =>
-        msg.id === messageId ? { ...msg, isRead: true } : msg
-      )
-    })),
-
-  markConversationAsRead: (conversationId: string) =>
-    set((state) => ({
-      conversations: state.conversations.map(conv =>
-        conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv
-      ),
-      currentConversation: state.currentConversation?.id === conversationId
-        ? { ...state.currentConversation, unreadCount: 0 }
-        : state.currentConversation
-    })),
-
-  createNewConversation: async (participants: User[]) => {
-    const newConversation: Conversation = {
-      id: Date.now().toString(),
-      participants,
-      unreadCount: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    get().addConversation(newConversation);
-    return newConversation;
+  createNewConversation: async (receiverUsername: string) => {
+    try {
+      // Get token from auth store
+      const authState = JSON.parse(localStorage.getItem('auth-storage') || '{}');
+      const token = authState.state?.token;
+      
+      if (!token) throw new Error('No authentication token');
+      
+      // Create conversation via API using receiverUsername
+      const newConversation = await chatGatewayAPI.createConversation(token, receiverUsername) as Conversation;
+      
+      // Add to local store
+      get().addConversation(newConversation);
+      return newConversation;
+    } catch (error) {
+      console.error('Failed to create conversation:', error);
+      throw error;
+    }
   },
 
   sendMessage: async (conversationId: string, content: string) => {
-    // Get user from auth store without circular dependency
-    const authState = JSON.parse(localStorage.getItem('auth-storage') || '{}');
-    const user = authState.state?.user;
-    
-    if (!user) throw new Error('User not authenticated');
+    try {
+      // Get token from auth store
+      const authState = JSON.parse(localStorage.getItem('auth-storage') || '{}');
+      const token = authState.state?.token;
+      
+      if (!token) throw new Error('No authentication token');
+      
+      // Send message via API
+      const newMessage = await chatGatewayAPI.sendMessage(token, conversationId, content) as Message;
+      
+      // Add to local store
+      get().addMessage(newMessage);
+      return newMessage;
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      throw error;
+    }
+  },
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      conversationId,
-      senderId: user.id,
-      content,
-      timestamp: new Date(),
-      isRead: false,
-    };
-
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    get().addMessage(newMessage);
-    return newMessage;
+  fetchConversations: async () => {
+    try {
+      set({ isLoading: true });
+      
+      // Get token from auth store
+      const authState = JSON.parse(localStorage.getItem('auth-storage') || '{}');
+      const token = authState.state?.token;
+      
+      if (!token) throw new Error('No authentication token');
+      
+      const response = await chatGatewayAPI.getConversations(token);
+      
+      // Handle the API response structure
+      if (response && typeof response === 'object' && 'conversations' in response) {
+        const conversations = response.conversations || [];
+        set({ conversations, isLoading: false });
+      } else {
+        // Fallback if response structure is different
+        const conversations = Array.isArray(response) ? response : [];
+        set({ conversations, isLoading: false });
+      }
+    } catch (error) {
+      console.error('Failed to fetch conversations:', error);
+      set({ isLoading: false });
+    }
   },
 }));

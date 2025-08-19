@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import ThemeProvider from '../components/ThemeProvider';
+import { NotificationProvider } from '../contexts/NotificationContext';
 
 export const metadata: Metadata = {
   title: 'Secure Chat App',
@@ -15,7 +16,9 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <ThemeProvider>
-          {children}
+          <NotificationProvider>
+            {children}
+          </NotificationProvider>
         </ThemeProvider>
       </body>
     </html>

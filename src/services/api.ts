@@ -1,4 +1,4 @@
-import { LoginCredentials, RegisterCredentials, LoginResponse, RegisterResponse, GatewayApiResponse, ChatApiResponse } from '../types';
+import { LoginCredentials, RegisterCredentials, LoginResponse, RegisterResponse, GatewayApiResponse, ChatApiResponse, ConversationsResponse } from '../types';
 import { OnionPayload, OnionResponse } from 'onion-request-lib';
 import { onionBuilder, GATEWAY_CONFIG, API_CONFIG } from '../constants';
 
@@ -28,7 +28,8 @@ type Payload = {
     endpoint: string,
     params: Record<string, unknown>,
     body: Record<string, unknown>,
-    query: Record<string, unknown>
+    query: Record<string, unknown>,
+    headers?: Record<string, string>
 }
 
 // ChatGatewayBuilder - builds request parameters for onion routing
@@ -62,14 +63,14 @@ export class ChatGatewayBuilder {
     return payload;
   }
 
-  static getCreateConversationPayload(participants: string[], isGroup: boolean = false): OnionPayload<Payload> {
+  static getCreateConversationPayload(receiverUsername: string, isEncrypted: boolean = true): OnionPayload<Payload> {
     const payload: Payload = {
       method: 'POST',
       endpoint: '/v1/chat/conversations',
       params: {},
       body: {
-        participants,
-        isGroup,
+        receiverUsername,
+        isEncrypted,
       },
       query: {}
     };
@@ -210,63 +211,76 @@ export class ChatGatewayAPI {
   }
 
   // Chat endpoints
-  async createConversation(participants: string[], isGroup: boolean = false, token: string) {
-    const payload = ChatGatewayBuilder.getCreateConversationPayload(participants, isGroup);
-    // Add auth token to payload body
+  async createConversation(token: string, receiverUsername: string, isEncrypted: boolean = true) {
+    const payload = ChatGatewayBuilder.getCreateConversationPayload(receiverUsername, isEncrypted);
+    // Add auth token to payload headers
     const payloadWithToken: Payload = {
       ...payload,
-      body: { ...payload.body, token }
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
     };
     return this.sendOnionRequest(payloadWithToken);
   }
 
-  async getConversations(token: string) {
+  async getConversations(token: string): Promise<ConversationsResponse> {
     const payload = ChatGatewayBuilder.getGetConversationsPayload();
-    // Add auth token to payload body
+    // Add auth token to payload headers
     const payloadWithToken: Payload = {
       ...payload,
-      body: { ...payload.body, token }
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
     };
-    return this.sendOnionRequest(payloadWithToken);
+    
+    return this.sendOnionRequest<ConversationsResponse>(payloadWithToken);
   }
 
-  async sendMessage(conversationId: string, content: string, token: string) {
+  async sendMessage(token: string, conversationId: string, content: string) {
     const payload = ChatGatewayBuilder.getSendMessagePayload(conversationId, content);
-    // Add auth token to payload body
+    // Add auth token to payload headers
     const payloadWithToken: Payload = {
       ...payload,
-      body: { ...payload.body, token }
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
     };
     return this.sendOnionRequest(payloadWithToken);
   }
 
-  async getMessages(conversationId: string, token: string) {
+  async getMessages(token: string, conversationId: string) {
     const payload = ChatGatewayBuilder.getGetMessagesPayload(conversationId);
-    // Add auth token to payload body
+    // Add auth token to payload headers
     const payloadWithToken: Payload = {
       ...payload,
-      body: { ...payload.body, token }
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
     };
     return this.sendOnionRequest(payloadWithToken);
   }
 
   // User endpoints
-  async searchUsers(query: string, token: string) {
+  async searchUsers(token: string, query: string) {
     const payload = ChatGatewayBuilder.getUserSearchPayload(query);
-    // Add auth token to payload body
+    // Add auth token to payload headers
     const payloadWithToken: Payload = {
       ...payload,
-      body: { ...payload.body, token }
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
     };
     return this.sendOnionRequest(payloadWithToken);
   }
 
-  async getUserProfile(userId: string, token: string) {
+  async getUserProfile(token: string, userId: string) {
     const payload = ChatGatewayBuilder.getUserProfilePayload(userId);
-    // Add auth token to payload body
+    // Add auth token to payload headers
     const payloadWithToken: Payload = {
       ...payload,
-      body: { ...payload.body, token }
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
     };
     return this.sendOnionRequest(payloadWithToken);
   }

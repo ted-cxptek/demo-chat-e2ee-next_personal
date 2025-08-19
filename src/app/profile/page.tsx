@@ -7,7 +7,6 @@ import {
   Button,
   TextField,
   Alert,
-  Snackbar,
   Container,
   Card,
   CardContent,
@@ -21,24 +20,27 @@ import {
 import { useAuthStore } from '../../stores/authStore';
 import AuthWrapper from '../../components/AuthWrapper';
 import { useRouter } from 'next/navigation';
+import { useNotification } from '../../contexts/NotificationContext';
 
 const Profile: React.FC = () => {
   const { user, updateUser } = useAuthStore();
-  const [copySuccess, setCopySuccess] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     username: user?.username || '',
   });
   const router = useRouter();
+  
+  // Use the notification context
+  const { showSnackbar } = useNotification();
 
   const handleCopySeedPhrase = async () => {
     if (user?.seedPhrase) {
       try {
         await navigator.clipboard.writeText(user.seedPhrase);
-        setCopySuccess(true);
-        setTimeout(() => setCopySuccess(false), 3000);
+        showSnackbar('Seed phrase copied to clipboard!', 'success');
       } catch (err) {
         console.error('Failed to copy: ', err);
+        showSnackbar('Failed to copy seed phrase', 'error');
       }
     }
   };
@@ -51,6 +53,7 @@ const Profile: React.FC = () => {
       };
       updateUser(updatedUser);
       setEditing(false);
+      showSnackbar('Profile updated successfully!', 'success');
     }
   };
 
@@ -219,17 +222,7 @@ const Profile: React.FC = () => {
           </Box>
         </Box>
 
-        {/* Copy Success Snackbar */}
-        <Snackbar
-          open={copySuccess}
-          autoHideDuration={3000}
-          onClose={() => setCopySuccess(false)}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        >
-          <Alert onClose={() => setCopySuccess(false)} severity="success">
-            Seed phrase copied to clipboard!
-          </Alert>
-        </Snackbar>
+        {/* Snackbar notifications are now handled globally by NotificationContext */}
       </Container>
     </AuthWrapper>
   );

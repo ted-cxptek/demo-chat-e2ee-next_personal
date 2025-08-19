@@ -11,15 +11,24 @@ export interface User {
 export interface Message {
   id: string;
   conversationId: string;
-  senderId: string;
+  sender: string; // Changed from senderId to match API
+  receiverId?: string; // Added to match API
   content: string;
+  contentForSender?: string; // Added to match API
+  messageType: 'text' | 'image' | 'file'; // Added to match API
+  isEncrypted: boolean; // Added to match API
+  status: 'sent' | 'delivered' | 'read'; // Added to match API
   timestamp: Date;
   isRead: boolean;
-  encryptedContent?: string;
+  createdAt: Date; // Added to match API
+  updatedAt: Date; // Added to match API
 }
 
 export interface Conversation {
   id: string;
+  name?: string | null;
+  type: 'direct' | 'group';
+  isEncrypted: boolean;
   participants: User[];
   lastMessage?: Message;
   unreadCount: number;
@@ -53,6 +62,14 @@ export interface ChatState {
   currentConversation: Conversation | null;
   messages: Message[];
   isLoading: boolean;
+  setConversations: (conversations: Conversation[]) => void;
+  setCurrentConversation: (conversation: Conversation | null) => void;
+  setMessages: (messages: Message[]) => void;
+  addConversation: (conversation: Conversation) => void;
+  addMessage: (message: Message) => void;
+  createNewConversation: (receiverUsername: string) => Promise<Conversation>;
+  sendMessage: (conversationId: string, content: string) => Promise<Message>;
+  fetchConversations: () => Promise<void>;
 }
 
 export interface WebSocketMessage {
@@ -102,6 +119,14 @@ export type MessageResponse = {
   content: string;
   timestamp: Date;
   isRead: boolean;
+};
+
+// API Response for conversations list
+export type ConversationsResponse = {
+  conversations: Conversation[];
+  total: number;
+  limit: number;
+  offset: number;
 };
 
 export type UserSearchResponse = {
