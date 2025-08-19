@@ -18,10 +18,9 @@ export interface Message {
   messageType: 'text' | 'image' | 'file'; // Added to match API
   isEncrypted: boolean; // Added to match API
   status: 'sent' | 'delivered' | 'read'; // Added to match API
-  timestamp: Date;
-  isRead: boolean;
-  createdAt: Date; // Added to match API
-  updatedAt: Date; // Added to match API
+  createdAt: string; // Changed from Date to string to match API
+  updatedAt: string; // Added to match API
+  // Removed timestamp and isRead as they don't exist in API
 }
 
 export interface Conversation {
@@ -62,6 +61,7 @@ export interface ChatState {
   currentConversation: Conversation | null;
   messages: Message[];
   isLoading: boolean;
+  isSendingMessage: boolean;
   setConversations: (conversations: Conversation[]) => void;
   setCurrentConversation: (conversation: Conversation | null) => void;
   setMessages: (messages: Message[]) => void;
@@ -70,6 +70,7 @@ export interface ChatState {
   createNewConversation: (receiverUsername: string) => Promise<Conversation>;
   sendMessage: (conversationId: string, content: string) => Promise<Message>;
   fetchConversations: () => Promise<void>;
+  fetchMessages: (conversationId: string) => Promise<void>;
 }
 
 export interface WebSocketMessage {
@@ -124,6 +125,14 @@ export type MessageResponse = {
 // API Response for conversations list
 export type ConversationsResponse = {
   conversations: Conversation[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+// API Response for messages list
+export type MessagesResponse = {
+  messages: Message[];
   total: number;
   limit: number;
   offset: number;

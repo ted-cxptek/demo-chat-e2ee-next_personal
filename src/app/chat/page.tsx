@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Box,
   Drawer,
@@ -53,7 +53,9 @@ const Chat: React.FC = () => {
     sendMessage,
     createNewConversation,
     fetchConversations,
+    fetchMessages,
     isLoading,
+    isSendingMessage,
   } = useChatStore();
 
   const [message, setMessage] = useState('');
@@ -61,9 +63,33 @@ const Chat: React.FC = () => {
   const [selectedUsername, setSelectedUsername] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
 
   // Use the notification context
   const { showSnackbar } = useNotification();
+
+  // Helper function to format timestamp safely
+  const formatMessageTime = (timestamp: string) => {
+    try {
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) {
+        return 'Invalid time';
+      }
+      return date.toLocaleTimeString();
+    } catch (error) {
+      return 'Invalid time';
+    }
+  };
+
+  // Auto-scroll to bottom when messages change
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, currentConversation?.id]);
 
   useEffect(() => {
     // Fetch real conversations from API
@@ -72,14 +98,23 @@ const Chat: React.FC = () => {
     }
   }, [conversations.length, fetchConversations]);
 
+  // Fetch messages for current conversation when it changes
+  useEffect(() => {
+    if (currentConversation) {
+      fetchMessages(currentConversation.id);
+    }
+  }, [currentConversation?.id, fetchMessages]);
+
   const handleSendMessage = async () => {
     if (!message.trim() || !currentConversation) return;
 
     try {
       await sendMessage(currentConversation.id, message);
       setMessage('');
+      showSnackbar('Message sent successfully!', 'success');
     } catch (error) {
       console.error('Failed to send message:', error);
+      showSnackbar('Failed to send message', 'error');
     }
   };
 
@@ -113,9 +148,20 @@ const Chat: React.FC = () => {
     }
   };
 
-  const handleConversationSelect = (conversation: Conversation) => {
+  const handleConversationSelect = async (conversation: Conversation) => {
     setCurrentConversation(conversation);
     setMobileOpen(false);
+    
+    // Fetch messages for the selected conversation
+    try {
+      setIsLoadingMessages(true);
+      await fetchMessages(conversation.id);
+    } catch (error) {
+      console.error('Failed to fetch messages:', error);
+      showSnackbar('Failed to load messages', 'error');
+    } finally {
+      setIsLoadingMessages(false);
+    }
   };
 
   const drawer = (
@@ -279,33 +325,49 @@ const Chat: React.FC = () => {
           {currentConversation ? (
             <Box sx={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}>
               {/* Messages Area */}
-              <Box sx={{ flexGrow: 1, overflow: 'auto', mb: 2 }}>
-                {messages
-                  .filter(m => m.conversationId === currentConversation.id)
-                  .map((msg) => (
-                    <Box
-                      key={msg.id}
-                      sx={{
-                        display: 'flex',
-                        justifyContent: msg.sender === user?.id ? 'flex-end' : 'flex-start',
-                        mb: 1,
-                      }}
-                    >
-                      <Paper
-                        sx={{
-                          p: 1.5,
-                          maxWidth: '70%',
-                          backgroundColor: msg.sender === user?.id ? 'primary.main' : 'grey.100',
-                          color: msg.sender === user?.id ? 'white' : 'text.primary',
-                        }}
-                      >
-                        <Typography variant="body2">{msg.content}</Typography>
-                        <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                          {new Date(msg.timestamp).toLocaleTimeString()}
-                        </Typography>
-                      </Paper>
-                    </Box>
-                  ))}
+              <Box sx={{ flexGrow: 1, overflow: 'auto', mb: 2, position: 'relative' }}>
+                {isLoadingMessages ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px' }}>
+                    <CircularProgress />
+                  </Box>
+                ) : messages.filter(m => m.conversationId === currentConversation.id).length === 0 ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px' }}>
+                    <Typography variant="body2" color="text.secondary">
+                      No messages yet. Start the conversation!
+                    </Typography>
+                  </Box>
+                ) : (
+                  <>
+                    {messages
+                      .filter(m => m.conversationId === currentConversation.id)
+                      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) // Sort by timestamp (oldest first)
+                      .map((msg) => (
+                        <Box
+                          key={msg.id}
+                          sx={{
+                            display: 'flex',
+                            justifyContent: msg.sender === user?.id ? 'flex-end' : 'flex-start',
+                            mb: 1,
+                          }}
+                        >
+                          <Paper
+                            sx={{
+                              p: 1.5,
+                              maxWidth: '70%',
+                              backgroundColor: msg.sender === user?.id ? 'primary.main' : 'grey.100',
+                              color: msg.sender === user?.id ? 'white' : 'text.primary',
+                            }}
+                          >
+                            <Typography variant="body2">{msg.content}</Typography>
+                            <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                              {formatMessageTime(msg.createdAt)}
+                            </Typography>
+                          </Paper>
+                        </Box>
+                      ))}
+                    <div ref={messagesEndRef} />
+                  </>
+                )}
               </Box>
 
               {/* Message Input */}
@@ -316,14 +378,15 @@ const Chat: React.FC = () => {
                   placeholder="Type a message..."
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  onKeyPress={(e) => e.key === 'Enter' && !isSendingMessage && handleSendMessage()}
+                  disabled={isSendingMessage}
                 />
                 <Button
                   variant="contained"
                   onClick={handleSendMessage}
-                  disabled={!message.trim()}
+                  disabled={!message.trim() || isSendingMessage}
                 >
-                  <SendIcon />
+                  {isSendingMessage ? <CircularProgress size={20} /> : <SendIcon />}
                 </Button>
               </Box>
             </Box>

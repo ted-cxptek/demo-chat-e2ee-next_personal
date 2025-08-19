@@ -10,9 +10,11 @@ interface ChatStore extends ChatState {
   setMessages: (messages: Message[]) => void;
   addMessage: (message: Message) => void;
   setLoading: (loading: boolean) => void;
+  setSendingMessage: (sending: boolean) => void;
   createNewConversation: (receiverUsername: string) => Promise<Conversation>;
   sendMessage: (conversationId: string, content: string) => Promise<Message>;
   fetchConversations: () => Promise<void>;
+  fetchMessages: (conversationId: string) => Promise<void>;
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
@@ -20,8 +22,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   currentConversation: null,
   messages: [],
   isLoading: false,
+  isSendingMessage: false,
 
   setLoading: (loading: boolean) => set({ isLoading: loading }),
+
+  setSendingMessage: (sending: boolean) => set({ isSendingMessage: sending }),
 
   setConversations: (conversations: Conversation[]) => set({ conversations }),
 
@@ -91,6 +96,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   sendMessage: async (conversationId: string, content: string) => {
     try {
+      set({ isSendingMessage: true });
+      
       // Get token from auth store
       const authState = JSON.parse(localStorage.getItem('auth-storage') || '{}');
       const token = authState.state?.token;
@@ -106,6 +113,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     } catch (error) {
       console.error('Failed to send message:', error);
       throw error;
+    } finally {
+      set({ isSendingMessage: false });
     }
   },
 
@@ -132,6 +141,31 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       }
     } catch (error) {
       console.error('Failed to fetch conversations:', error);
+      set({ isLoading: false });
+    }
+  },
+
+  fetchMessages: async (conversationId: string) => {
+    try {
+      // Get token from auth store
+      const authState = JSON.parse(localStorage.getItem('auth-storage') || '{}');
+      const token = authState.state?.token;
+      
+      if (!token) throw new Error('No authentication token');
+      
+      const response = await chatGatewayAPI.getMessages(token, conversationId);
+      
+      // Handle the API response structure
+      if (response && typeof response === 'object' && 'messages' in response) {
+        const messages = response.messages || [];
+        set({ messages, isLoading: false });
+      } else {
+        // Fallback if response structure is different
+        const messages = Array.isArray(response) ? response : [];
+        set({ messages, isLoading: false });
+      }
+    } catch (error) {
+      console.error('Failed to fetch messages:', error);
       set({ isLoading: false });
     }
   },

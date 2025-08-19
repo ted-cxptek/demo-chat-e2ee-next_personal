@@ -1,4 +1,4 @@
-import { LoginCredentials, RegisterCredentials, LoginResponse, RegisterResponse, GatewayApiResponse, ChatApiResponse, ConversationsResponse } from '../types';
+import { LoginCredentials, RegisterCredentials, LoginResponse, RegisterResponse, GatewayApiResponse, ChatApiResponse, ConversationsResponse, MessagesResponse } from '../types';
 import { OnionPayload, OnionResponse } from 'onion-request-lib';
 import { onionBuilder, GATEWAY_CONFIG, API_CONFIG } from '../constants';
 
@@ -248,7 +248,7 @@ export class ChatGatewayAPI {
     return this.sendOnionRequest(payloadWithToken);
   }
 
-  async getMessages(token: string, conversationId: string) {
+  async getMessages(token: string, conversationId: string): Promise<MessagesResponse> {
     const payload = ChatGatewayBuilder.getGetMessagesPayload(conversationId);
     // Add auth token to payload headers
     const payloadWithToken: Payload = {
@@ -257,7 +257,7 @@ export class ChatGatewayAPI {
         'Authorization': `Bearer ${token}`
       }
     };
-    return this.sendOnionRequest(payloadWithToken);
+    return this.sendOnionRequest<MessagesResponse>(payloadWithToken);
   }
 
   // User endpoints
