@@ -160,7 +160,7 @@ const Profile: React.FC = () => {
                     <Typography variant="h6">Security & Keys</Typography>
                   </Box>
 
-                  {user.derivedPublicKey && (
+                  {user.publicKey && (
                     <Box sx={{ mb: 3 }}>
                       <Typography variant="body2" color="text.secondary" gutterBottom>
                         Derived Public Key (From Seed Phrase)
@@ -175,7 +175,7 @@ const Profile: React.FC = () => {
                           wordBreak: 'break-all'
                         }}
                       >
-                        {user.derivedPublicKey}
+                        {user.publicKey}
                       </Typography>
                     </Box>
                   )}

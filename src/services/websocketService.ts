@@ -91,7 +91,6 @@ class WebSocketService {
   private handleMessage(event: MessageEvent): void {
     try {
       const data = JSON.parse(event.data);
-      console.log('WebSocket message received:', data);
 
       // Check if the message has the expected structure
       if (this.isValidMessage(data)) {
@@ -116,7 +115,6 @@ class WebSocketService {
   }
 
   private handleError(error: Event): void {
-    console.error('WebSocket error:', error);
     this.notifyStatus('error');
   }
 

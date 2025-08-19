@@ -252,7 +252,9 @@ const Chat: React.FC = () => {
               >
                 <ListItemAvatar>
                   <Badge
-                    badgeContent={conversation.unreadCount}
+                    // TODO: Implement proper unread count logic
+                    // badgeContent={conversation.unreadCount}
+                    badgeContent={0}
                     color="error"
                     invisible={conversation.unreadCount === 0}
                   >

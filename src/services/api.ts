@@ -203,10 +203,7 @@ export class ChatGatewayAPI {
   }
 
   async register(credentials: RegisterCredentials): Promise<RegisterResponse> {
-    // Generate a mock public key for demo purposes
-    // In production, this should come from the user's actual keypair
-    const mockPublicKey = `mock_public_key_${Date.now()}`;
-    const payload = ChatGatewayBuilder.getRegisterPayload(credentials.username, credentials.password, mockPublicKey);
+    const payload = ChatGatewayBuilder.getRegisterPayload(credentials.username, credentials.password, credentials.publicKey);
     return this.sendOnionRequest<RegisterResponse>(payload);
   }
 

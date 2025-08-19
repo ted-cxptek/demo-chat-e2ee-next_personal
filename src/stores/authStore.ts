@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { AuthState, LoginCredentials, RegisterCredentials, User } from '../types';
 import { chatGatewayAPI, ApiError } from '../services/api';
-import { generateUserKeys } from '../utils/crypto';
+import { derivePublicKeyFromSeedPhrase, generateSeedPhraseAndPublicKey } from '../utils/crypto';
 
 interface AuthStore extends AuthState {
   errorMessage: string | null;
@@ -57,7 +57,7 @@ export const useAuthStore = create<AuthStore>()(
           const enhancedUser = seedPhrase ? {
             ...user,
             seedPhrase: seedPhrase,
-            derivedPublicKey: user.publicKey, // Use existing publicKey as derivedPublicKey
+            publicKey: derivePublicKeyFromSeedPhrase(seedPhrase),
           } : user;
           
           set({
@@ -78,24 +78,26 @@ export const useAuthStore = create<AuthStore>()(
         set({ isLoading: true, errorMessage: null });
         try {
           // Generate seed phrase and derive public key for the user
-          const { seedPhrase, publicKey } = generateUserKeys(credentials.username);
+          const { seedPhrase, publicKey } = generateSeedPhraseAndPublicKey();
           
           // Create enhanced credentials with crypto data
           const enhancedCredentials = {
             ...credentials,
             seedPhrase,
-            derivedPublicKey: publicKey,
+            publicKey,
           };
           
           const response = await chatGatewayAPI.register(enhancedCredentials);
 
           const { user, token } = response;
           
-          // Update user object with crypto data
-          const enhancedUser = {
-            ...user,
-            seedPhrase,
-            derivedPublicKey: publicKey,
+          // Create enhanced user object with seed phrase and public key
+          const enhancedUser: User = {
+            id: response.user.id,
+            username: response.user.username,
+            publicKey: response.user.publicKey,
+            createdAt: response.user.createdAt,
+            seedPhrase: credentials.seedPhrase,
           };
           
           set({
