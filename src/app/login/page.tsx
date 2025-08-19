@@ -47,7 +47,8 @@ const Login: React.FC = () => {
     
     try {
       await login({ username, password });
-      router.push('/chat');
+      // AuthWrapper will automatically redirect to /chat when isAuthenticated becomes true
+      // No need to manually call router.push('/chat')
     } catch (err) {
       // Error is already handled in the store, no need to handle it here
       console.error('Login error:', err);
