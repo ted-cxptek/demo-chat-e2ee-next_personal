@@ -20,7 +20,7 @@ import AuthWrapper from '../../components/AuthWrapper';
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [seedPhrase, setSeedPhrase] = useState('');
+  const [privateKey, setPrivateKey] = useState('');
   
   const { login, isLoading, errorMessage, successMessage, clearError, clearSuccess } = useAuthStore();
   const router = useRouter();
@@ -42,8 +42,8 @@ const Login: React.FC = () => {
     if (errorMessage) clearError(); // Clear error when user starts typing
   };
 
-  const handleSeedPhraseChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSeedPhrase(e.target.value);
+  const handlePrivateKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPrivateKey(e.target.value);
     if (errorMessage) clearError(); // Clear error when user starts typing
   };
 
@@ -52,7 +52,7 @@ const Login: React.FC = () => {
     clearError(); // Clear any previous errors
     
     try {
-      await login({ username, password, seedPhrase });
+      await login({ username, password, privateKey });
       // AuthWrapper will automatically redirect to /chat when isAuthenticated becomes true
       // No need to manually call router.push('/chat')
     } catch (err) {
@@ -159,18 +159,18 @@ const Login: React.FC = () => {
                 margin="normal"
                 required
                 fullWidth
-                name="seedPhrase"
-                label="Seed Phrase"
+                name="privateKey"
+                label="Private Key"
                 type="password"
-                id="seedPhrase"
-                autoComplete="seedPhrase"
-                value={seedPhrase}
-                onChange={handleSeedPhraseChange}
+                id="privateKey"
+                autoComplete="privateKey"
+                value={privateKey}
+                onChange={handlePrivateKeyChange}
                 sx={{ mb: 1 }}
-                placeholder="Enter your 12-word seed phrase"
+                placeholder="Enter your private key (hex format)"
               />
               <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
-                💡 Enter the 12-word seed phrase you received during registration
+                🔑 Enter your private key - your public key will be automatically derived
               </Typography>
               <Button
                 type="submit"

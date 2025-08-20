@@ -2,8 +2,8 @@ export interface User {
   id: string;
   username: string;
   publicKey: string;
+  privateKey?: string; // Private key for decryption (stored locally, never sent to server)
   createdAt: string;
-  seedPhrase?: string; // Seed phrase for demo purposes
 }
 
 export interface Message {
@@ -46,13 +46,12 @@ export interface AuthState {
 export interface LoginCredentials {
   username: string;
   password: string;
-  seedPhrase: string;
+  privateKey: string;
 }
 
 export interface RegisterCredentials {
   username: string;
   password: string;
-  seedPhrase: string;
   publicKey: string;
 }
 

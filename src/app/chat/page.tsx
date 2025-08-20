@@ -238,6 +238,7 @@ const Chat: React.FC = () => {
         ) : (
           conversations.map((conversation) => {
             const otherParticipant = conversation.participants.find(p => p.id !== user?.id);
+            
             return (
               <ListItem
                 key={conversation.id}

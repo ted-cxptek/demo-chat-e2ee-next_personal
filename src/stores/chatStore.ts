@@ -2,6 +2,11 @@ import { create } from 'zustand';
 import { ChatState, Conversation, Message, User } from '../types';
 import { chatGatewayAPI } from '../services/api';
 import { websocketService } from '../services/websocketService';
+import {
+  createSenderEncryptedMessage,
+  createRecipientEncryptedMessage,
+  decryptEncryptedMessage
+} from '../utils/crypto';
 
 interface ChatStore extends ChatState {
   setConversations: (conversations: Conversation[]) => void;
@@ -53,14 +58,67 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   setMessages: (messages: Message[]) => set({ messages }),
 
-  addMessage: (message: Message) => {
+  addMessage: async (message: Message) => {
+    try {
+      // Get current user data for decryption
+      const authState = JSON.parse(localStorage.getItem('auth-storage') || '{}');
+      const currentUser = authState.state?.user;
+
+      let processedMessage = message;
+
+      // Decrypt message if it's encrypted and we have the private key
+      if (currentUser?.privateKey && message.isEncrypted) {
+        try {
+                    // Determine which content to decrypt based on current user
+          const isFromCurrentUser = message.senderId === currentUser.id;
+          let contentToDecrypt: string | undefined;
+
+          if (isFromCurrentUser) {
+            // Message is from current user: decrypt contentForSender
+            contentToDecrypt = message.contentForSender;
+          } else {
+            // Message is from someone else: decrypt content
+            contentToDecrypt = message.content;
+          }
+
+          if (contentToDecrypt) {
+            // Decrypt and verify the EncryptedMessage
+            const decryptedMessage = await decryptEncryptedMessage(contentToDecrypt, currentUser.privateKey);
+
+            if (decryptedMessage) {
+
+              // Update message content for display
+              processedMessage = {
+                ...message,
+                content: decryptedMessage.content,
+                contentForSender: decryptedMessage.content
+              };
+            } else {
+              processedMessage = {
+                ...message,
+                content: '❌ Failed to decrypt message',
+                contentForSender: '❌ Failed to decrypt message'
+              };
+            }
+          } else {
+            // No content to decrypt
+          }
+        } catch (error) {
+          processedMessage = {
+            ...message,
+            content: '❌ Error processing message',
+            contentForSender: '❌ Error processing message'
+          };
+        }
+      }
+
     set((state) => {
-      const newMessages = [...state.messages, message];
+        const newMessages = [...state.messages, processedMessage];
       const updatedConversations = state.conversations.map(conv => {
-        if (conv.id === message.conversationId) {
+          if (conv.id === processedMessage.conversationId) {
           return {
             ...conv,
-            lastMessage: message,
+              lastMessage: processedMessage,
             unreadCount: conv.unreadCount + 1,
             updatedAt: new Date()
           };
@@ -71,11 +129,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       return {
         messages: newMessages,
         conversations: updatedConversations,
-        currentConversation: state.currentConversation?.id === message.conversationId
-          ? { ...state.currentConversation, lastMessage: message, updatedAt: new Date() }
+          currentConversation: state.currentConversation?.id === processedMessage.conversationId
+            ? { ...state.currentConversation, lastMessage: processedMessage, updatedAt: new Date() }
           : state.currentConversation
       };
     });
+    } catch (error) {
+      // Failed to add message
+    }
   },
 
   createNewConversation: async (receiverUsername: string) => {
@@ -83,17 +144,17 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       // Get token from auth store
       const authState = JSON.parse(localStorage.getItem('auth-storage') || '{}');
       const token = authState.state?.token;
-      
+
       if (!token) throw new Error('No authentication token');
-      
+
       // Create conversation via API using receiverUsername
       const newConversation = await chatGatewayAPI.createConversation(token, receiverUsername) as Conversation;
-      
+
       // Add to local store
-      get().addConversation(newConversation);
-      return newConversation;
+      await get().addConversation(newConversation);
+    return newConversation;
     } catch (error) {
-      console.error('Failed to create conversation:', error);
+      // Failed to create conversation
       throw error;
     }
   },
@@ -101,44 +162,106 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   sendMessage: async (conversationId: string, content: string) => {
     try {
       set({ isSendingMessage: true });
-      
-      // Get token from auth store
-      const authState = JSON.parse(localStorage.getItem('auth-storage') || '{}');
+
+      // Get token and user data from auth store
+    const authState = JSON.parse(localStorage.getItem('auth-storage') || '{}');
       const token = authState.state?.token;
-      
+      const currentUser = authState.state?.user;
+
       if (!token) throw new Error('No authentication token');
-      
-      // TODO: Length of content is odd, so we add a space to make it even
-      // Error: Cannot get GET
-      const newContent = content.length % 2 === 1 ? content + ' ' : content;
+      if (!currentUser?.privateKey) throw new Error('No private key available for encryption');
+      if (!currentUser?.publicKey) throw new Error('No public key available for encryption');
+
+      // Find the conversation to get recipient information and encryption flag
+      const conversation = get().conversations.find(c => c.id === conversationId);
+      if (!conversation) throw new Error('Conversation not found');
+
+      const isEncrypted = conversation.isEncrypted || false;
+
+            // Processing message
+
+      let messageToSend: any;
+
+      if (isEncrypted) {
+        // Case 1: Encrypted message with dual encryption
+
+        // Get recipient's public key from conversation participants
+        const recipient = conversation.participants.find(p => p.id !== currentUser.id);
+        if (!recipient?.publicKey) {
+          throw new Error('Recipient public key not found for encryption');
+        }
+
+        // Create EncryptedMessage for sender (encrypted with sender's public key)
+        const contentForSender = await createSenderEncryptedMessage(
+          content,
+          currentUser.publicKey,
+          currentUser.privateKey
+        );
+
+        // Create EncryptedMessage for recipient (encrypted with recipient's public key)
+        const contentForRecipient = await createRecipientEncryptedMessage(
+      content,
+          currentUser.publicKey,
+          currentUser.privateKey,
+          recipient.publicKey
+        );
+
+        // Created dual encrypted messages
+
+        // Verify the encrypted data is not [object Object]
+        if (contentForSender.includes('[object Object]') || contentForRecipient.includes('[object Object]')) {
+          throw new Error('Encryption failed - invalid encrypted data');
+        }
+
+        // Prepare message for API
+        messageToSend = {
+          content: contentForRecipient,        // For recipient (encrypted with recipient's public key)
+          contentForSender: contentForSender,  // For sender (encrypted with sender's public key)
+          messageType: 'text',
+          isEncrypted: true
+        };
+
+      } else {
+        // Case 2: Raw message (no encryption)
+
+        // Send raw message structure
+        messageToSend = {
+          content: content,
+          contentForSender: content,  // Same as content for raw messages
+          messageType: 'text',
+          isEncrypted: false
+        };
+      }
+
       // Send message via API
-      const newMessage = await chatGatewayAPI.sendMessage(token, conversationId, newContent) as Message;
-      
+      const newMessage = await chatGatewayAPI.sendMessage(token, conversationId, messageToSend) as Message;
+
+      // Message sent via API
+
       // Normalize the message if needed (convert 'sender' to 'senderId')
       let normalizedMessage = {
         ...newMessage,
         senderId: newMessage.sender || newMessage.senderId
       };
-      
+
       // Add to local store
-      get().addMessage(normalizedMessage);
+      await get().addMessage(normalizedMessage);
       return normalizedMessage;
     } catch (error) {
-      console.error('Failed to send message:', error);
       throw error;
-      
     } finally {
       set({ isSendingMessage: false });
     }
   },
 
-  fetchConversations: async () => {
+    fetchConversations: async () => {
     try {
       set({ isLoading: true });
       
-      // Get token from auth store
+      // Get token and user data from auth store
       const authState = JSON.parse(localStorage.getItem('auth-storage') || '{}');
       const token = authState.state?.token;
+      const currentUser = authState.state?.user;
       
       if (!token) throw new Error('No authentication token');
       
@@ -147,49 +270,193 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       // Handle the API response structure
       if (response && typeof response === 'object' && 'conversations' in response) {
         const conversations = response.conversations || [];
-        set({ conversations, isLoading: false });
+        
+        // Decrypt lastMessage in each conversation if it's encrypted
+        const decryptedConversations = await Promise.all(conversations.map(async (conv: any) => {
+          if (conv.lastMessage && conv.lastMessage.isEncrypted && currentUser?.privateKey) {
+            try {
+              // Decrypting lastMessage in conversation
+              const lastMessage = {
+                ...conv.lastMessage,
+                senderId: conv.lastMessage.senderId || conv.lastMessage.sender
+              };
+              
+              // Determine which content to decrypt based on current user
+              const isFromCurrentUser = lastMessage.senderId === currentUser.id;
+              let contentToDecrypt: string | undefined;
+              
+              if (isFromCurrentUser) {
+                // Message is from current user: decrypt contentForSender
+                contentToDecrypt = conv.lastMessage.contentForSender;
+              } else {
+                // Message is from someone else: decrypt content
+                contentToDecrypt = conv.lastMessage.content;
+              }
+              
+              if (contentToDecrypt) {
+                // Decrypt and verify the EncryptedMessage
+                const decryptedMessage = await decryptEncryptedMessage(contentToDecrypt, currentUser.privateKey);
+                
+                if (decryptedMessage) {
+                  // Successfully decrypted lastMessage
+                  
+                  // Update conversation with decrypted lastMessage
+                  return {
+                    ...conv,
+                    lastMessage: {
+                      ...conv.lastMessage,
+                      content: decryptedMessage.content,
+                      contentForSender: decryptedMessage.content
+                    }
+                  };
+                } else {
+                  return {
+                    ...conv,
+                    lastMessage: {
+                      ...conv.lastMessage,
+                      content: '❌ Failed to decrypt message',
+                      contentForSender: '❌ Failed to decrypt message'
+                    }
+                  };
+                }
+              } else {
+                return conv;
+              }
+            } catch (error) {
+              return {
+                ...conv,
+                lastMessage: {
+                  ...conv.lastMessage,
+                  content: '❌ Error processing message',
+                  contentForSender: '❌ Error processing message'
+                }
+              };
+            }
+          }
+          
+          // Return conversation unchanged if no decryption needed
+          return conv;
+        }));
+        
+        set({ conversations: decryptedConversations, isLoading: false });
       } else {
         // Fallback if response structure is different
         const conversations = Array.isArray(response) ? response : [];
         set({ conversations, isLoading: false });
       }
     } catch (error) {
-      console.error('Failed to fetch conversations:', error);
       set({ isLoading: false });
     }
   },
 
   fetchMessages: async (conversationId: string) => {
     try {
-      // Get token from auth store
+      // Get token and user data from auth store
       const authState = JSON.parse(localStorage.getItem('auth-storage') || '{}');
       const token = authState.state?.token;
-      
+      const currentUser = authState.state?.user;
+
       if (!token) throw new Error('No authentication token');
-      
+
       const response = await chatGatewayAPI.getMessages(token, conversationId);
-      
+
       // Handle the API response structure
       if (response && typeof response === 'object' && 'messages' in response) {
         const messages = response.messages || [];
-        
-        // Normalize messages: convert 'sender' to 'senderId' if needed
-        const normalizedMessages = messages.map((msg: any) => {          
-          return {
+
+        // Normalize and decrypt messages if needed
+        const normalizedMessages = await Promise.all(messages.map(async (msg: any) => {
+          let normalizedMsg = {
             ...msg,
             senderId: msg.sender || msg.senderId
           };
+
+          // Decrypt message if it's encrypted and we have the private key
+          if (currentUser?.privateKey && msg.isEncrypted) {
+            try {
+              // Decrypting fetched message
+
+              // Determine which content to decrypt based on current user
+              const isFromCurrentUser = normalizedMsg.senderId === currentUser.id;
+              let contentToDecrypt: string | undefined;
+
+              if (isFromCurrentUser) {
+                // Message is from current user: decrypt contentForSender
+                contentToDecrypt = normalizedMsg.contentForSender;
+              } else {
+                // Message is from someone else: decrypt content
+                contentToDecrypt = normalizedMsg.content;
+              }
+
+              if (contentToDecrypt) {
+                // Decrypt and verify the EncryptedMessage
+                const decryptedMessage = await decryptEncryptedMessage(contentToDecrypt, currentUser.privateKey);
+
+                if (decryptedMessage) {
+                  // Successfully decrypted fetched message
+
+                  // Update message content for display
+                  normalizedMsg = {
+                    ...normalizedMsg,
+                    content: decryptedMessage.content,
+                    contentForSender: decryptedMessage.content
+                  };
+                } else {
+                  normalizedMsg = {
+                    ...normalizedMsg,
+                    content: '❌ Failed to decrypt message',
+                    contentForSender: '❌ Failed to decrypt message'
+                  };
+                }
+              } else {
+                // No content to decrypt for message
+              }
+            } catch (error) {
+              normalizedMsg = {
+                ...normalizedMsg,
+                content: '❌ Error processing message',
+                contentForSender: '❌ Error processing message'
+              };
+            }
+          }
+
+          return normalizedMsg;
+        }));
+
+        // Update messages and also update conversations with decrypted lastMessage
+        set((state) => {
+          // Find the latest message for this conversation
+          const latestMessage = normalizedMessages.length > 0 ?
+            normalizedMessages[normalizedMessages.length - 1] : null;
+
+          // Updating conversations with decrypted lastMessage
+
+          // Update conversations to include decrypted lastMessage
+          const updatedConversations = state.conversations.map(conv => {
+            if (conv.id === conversationId && latestMessage) {
+              // Updating conversation
+
+              return {
+                ...conv,
+                lastMessage: latestMessage,
+                updatedAt: new Date()
+              };
+            }
+            return conv;
+          });
+
+          return {
+            messages: normalizedMessages,
+            conversations: updatedConversations,
+            isLoading: false
+          };
         });
-        
-        set({ messages: normalizedMessages, isLoading: false });
       } else {
         // Fallback if response structure is different
         const messages = Array.isArray(response) ? response : [];
-
         set({ messages, isLoading: false });
       }
     } catch (error) {
-      console.error('Failed to fetch messages:', error);
       set({ isLoading: false });
     }
   },
@@ -200,25 +467,23 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       const authState = JSON.parse(localStorage.getItem('auth-storage') || '{}');
       const token = authState.state?.token;
       const user = authState.state?.user;
-      
+
       if (!token) {
-        console.warn('No authentication token available for WebSocket connection');
         return;
       }
 
       if (!user) {
-        console.warn('No user data available for WebSocket connection');
         return;
       }
 
       // Set up message handler for incoming messages
       websocketService.onMessage(get().handleIncomingMessage);
-      
+
       // Connect to WebSocket with user ID for automatic login
       websocketService.connect(token, user.username);
-      
+
     } catch (error) {
-      console.error('Failed to connect WebSocket:', error);
+      // Failed to connect WebSocket
     }
   },
 
@@ -226,35 +491,81 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     try {
       websocketService.disconnect();
     } catch (error) {
-      console.error('Failed to disconnect WebSocket:', error);
+      // Failed to disconnect WebSocket
     }
   },
 
-  handleIncomingMessage: (message: Message) => {    
-    // Get current user ID from auth store
+  handleIncomingMessage: async (message: Message) => {
+    // Get current user ID and private key from auth store
     const authState = JSON.parse(localStorage.getItem('auth-storage') || '{}');
     const currentUserId = authState.state?.user?.id;
-    
+    const currentUserPrivateKey = authState.state?.user?.privateKey;
+
     // Don't skip messages sent by current user - WebSocket should deliver to both sender and receiver
-    
+
+    // Process incoming message (decrypt if encrypted)
+    let processedMessage = message;
+
+    if (message.isEncrypted && currentUserPrivateKey) {
+      try {
+        // Determine which content to decrypt based on current user
+        const isFromCurrentUser = message.senderId === currentUserId;
+        let contentToDecrypt: string | undefined;
+
+        if (isFromCurrentUser) {
+          // Message is from current user: decrypt contentForSender
+          contentToDecrypt = message.contentForSender;
+        } else {
+          // Message is from someone else: decrypt content
+          contentToDecrypt = message.content;
+        }
+
+        if (contentToDecrypt) {
+          // Decrypt and verify the EncryptedMessage
+          const decryptedMessage = await decryptEncryptedMessage(contentToDecrypt, currentUserPrivateKey);
+
+          if (decryptedMessage) {
+            // Update message content for display
+            processedMessage = {
+              ...message,
+              content: decryptedMessage.content,
+              contentForSender: decryptedMessage.content
+            };
+          } else {
+            processedMessage = {
+              ...message,
+              content: '❌ Failed to decrypt message',
+              contentForSender: '❌ Failed to decrypt message'
+            };
+          }
+        }
+      } catch (error) {
+        processedMessage = {
+          ...message,
+          content: '❌ Error processing message',
+          contentForSender: '❌ Error processing message'
+        };
+      }
+    }
+
     set((state) => {
       // Check if this message is for the current conversation
-      const isCurrentConversation = state.currentConversation?.id === message.conversationId;
-      
+      const isCurrentConversation = state.currentConversation?.id === processedMessage.conversationId;
+
       // Add message to messages array if it doesn't already exist
-      const messageExists = state.messages.some(m => m.id === message.id);
+      const messageExists = state.messages.some(m => m.id === processedMessage.id);
       if (messageExists) {
         return state;
       }
 
-      const newMessages = [...state.messages, message];
-      
+      const newMessages = [...state.messages, processedMessage];
+
       // Update conversations with new message
       const updatedConversations = state.conversations.map(conv => {
-        if (conv.id === message.conversationId) {
+        if (conv.id === processedMessage.conversationId) {
           return {
             ...conv,
-            lastMessage: message,
+            lastMessage: processedMessage,
             unreadCount: conv.unreadCount + 1,
             updatedAt: new Date()
           };
@@ -264,7 +575,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
       // Update current conversation if it's the active one
       const updatedCurrentConversation = isCurrentConversation && state.currentConversation
-        ? { ...state.currentConversation, lastMessage: message, updatedAt: new Date() }
+        ? { ...state.currentConversation, lastMessage: processedMessage, updatedAt: new Date() }
         : state.currentConversation;
 
       return {

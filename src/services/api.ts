@@ -77,14 +77,19 @@ export class ChatGatewayBuilder {
     return payload;
   }
 
-  static getSendMessagePayload(conversationId: string, content: string): OnionPayload<Payload> {
+  static getSendMessagePayload(conversationId: string, messageData: {
+    content: string;
+    contentForSender: string;
+    messageType: string;
+    isEncrypted: boolean;
+  }): OnionPayload<Payload> {
     const payload: Payload = {
       method: 'POST',
       endpoint: '/v1/chat/messages',
       params: {},
       body: {
         conversationId,
-        content,
+        ...messageData,
       },
       query: {}
     };
@@ -239,8 +244,13 @@ export class ChatGatewayAPI {
     return this.sendOnionRequest<ConversationsResponse>(payloadWithToken);
   }
 
-  async sendMessage(token: string, conversationId: string, content: string) {
-    const payload = ChatGatewayBuilder.getSendMessagePayload(conversationId, content);
+  async sendMessage(token: string, conversationId: string, messageData: {
+    content: string;
+    contentForSender: string;
+    messageType: string;
+    isEncrypted: boolean;
+  }) {
+    const payload = ChatGatewayBuilder.getSendMessagePayload(conversationId, messageData);
     // Add auth token to payload headers
     const payloadWithToken: Payload = {
       ...payload,

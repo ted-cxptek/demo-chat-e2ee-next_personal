@@ -33,14 +33,14 @@ const Profile: React.FC = () => {
   // Use the notification context
   const { showSnackbar } = useNotification();
 
-  const handleCopySeedPhrase = async () => {
-    if (user?.seedPhrase) {
+  const handleCopyPrivateKey = async () => {
+    if (user?.privateKey) {
       try {
-        await navigator.clipboard.writeText(user.seedPhrase);
-        showSnackbar('Seed phrase copied to clipboard!', 'success');
+        await navigator.clipboard.writeText(user.privateKey);
+        showSnackbar('Private key copied to clipboard!', 'success');
       } catch (err) {
         console.error('Failed to copy: ', err);
-        showSnackbar('Failed to copy seed phrase', 'error');
+        showSnackbar('Failed to copy private key', 'error');
       }
     }
   };
@@ -163,7 +163,7 @@ const Profile: React.FC = () => {
                   {user.publicKey && (
                     <Box sx={{ mb: 3 }}>
                       <Typography variant="body2" color="text.secondary" gutterBottom>
-                        Derived Public Key (From Seed Phrase)
+                        ECC Public Key (Derived from Private Key)
                       </Typography>
                       <Typography 
                         variant="body2" 
@@ -177,42 +177,47 @@ const Profile: React.FC = () => {
                       >
                         {user.publicKey}
                       </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                        🔑 This public key is automatically derived from your private key
+                      </Typography>
                     </Box>
                   )}
 
-                  <Box sx={{ mb: 3 }}>
-                    <Typography variant="body2" color="text.secondary" gutterBottom>
-                      Seed Phrase
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                      ⚠️ Keep this secret! Anyone with access to your seed phrase can control your account.
-                    </Typography>
-                    
-                    <TextField
-                      fullWidth
-                      multiline
-                      rows={3}
-                      value={user.seedPhrase || 'No seed phrase available'}
-                      InputProps={{
-                        readOnly: true,
-                        style: { fontFamily: 'monospace', fontSize: '12px' }
-                      }}
-                      sx={{ mb: 2 }}
-                    />
-                    
-                    <Button
-                      variant="contained"
-                      startIcon={<CopyIcon />}
-                      onClick={handleCopySeedPhrase}
-                      size="small"
-                    >
-                      Copy to Clipboard
-                    </Button>
-                  </Box>
+                  {user.privateKey && (
+                    <Box sx={{ mb: 3 }}>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        ECC Private Key
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        ⚠️ Keep this secret! Anyone with access to your private key can decrypt your messages.
+                      </Typography>
+                      
+                      <TextField
+                        fullWidth
+                        multiline
+                        rows={3}
+                        value={user.privateKey}
+                        InputProps={{
+                          readOnly: true,
+                          style: { fontFamily: 'monospace', fontSize: '12px' }
+                        }}
+                        sx={{ mb: 2 }}
+                      />
+                      
+                      <Button
+                        variant="contained"
+                        startIcon={<CopyIcon />}
+                        onClick={handleCopyPrivateKey}
+                        size="small"
+                      >
+                        Copy to Clipboard
+                      </Button>
+                    </Box>
+                  )}
 
                   <Alert severity="warning">
                     <Typography variant="body2">
-                      <strong>Security Warning:</strong> Never share your seed phrase with anyone. 
+                      <strong>Security Warning:</strong> Never share your private key with anyone. 
                       Store it securely offline for backup purposes only.
                     </Typography>
                   </Alert>
