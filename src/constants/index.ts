@@ -29,6 +29,12 @@ export const CHAT_SERVER_CONFIG = {
     timeout: 10000,
 };
 
+// WebSocket server configuration
+export const WEBSOCKET_CONFIG = {
+    baseURL: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:8002',
+    path: '/ws',
+};
+
 // API configuration
 export const API_CONFIG = {
     timeout: 10000,

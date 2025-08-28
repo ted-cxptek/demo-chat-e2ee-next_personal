@@ -1,6 +1,7 @@
 'use client';
 
 import { Message } from '../types';
+import { WEBSOCKET_CONFIG } from '../constants';
 
 type WebSocketMessageHandler = (message: Message) => void;
 type WebSocketStatusHandler = (status: 'connected' | 'disconnected' | 'error') => void;
@@ -36,7 +37,7 @@ class WebSocketService {
       }
       
       // Connect to WebSocket with token as query parameter
-      const wsUrl = `ws://localhost:8002/ws?token=${encodeURIComponent(token)}`;
+      const wsUrl = `${WEBSOCKET_CONFIG.baseURL}${WEBSOCKET_CONFIG.path}?token=${encodeURIComponent(token)}`;
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = this.handleOpen;
