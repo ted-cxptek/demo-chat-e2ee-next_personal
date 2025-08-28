@@ -11,9 +11,6 @@ import {
   List,
   ListItem,
   ListItemText,
-  ListItemAvatar,
-  Avatar,
-  Badge,
   TextField,
   Button,
   Dialog,
@@ -21,14 +18,12 @@ import {
   DialogContent,
   DialogActions,
   Chip,
-  Paper,
   CircularProgress,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
   Send as SendIcon,
   Add as AddIcon,
-  Person as PersonIcon,
   Logout as LogoutIcon,
   Settings as SettingsIcon,
 } from '@mui/icons-material';
@@ -39,6 +34,8 @@ import { User, Conversation } from '../../types';
 import AuthWrapper from '../../components/AuthWrapper';
 import { useNotification } from '../../contexts/NotificationContext';
 import { websocketService } from '../../services/websocketService';
+import Message from '../../components/Message';
+import ConversationItem from '../../components/ConversationItem';
 
 const drawerWidth = 320;
 
@@ -144,7 +141,6 @@ const Chat: React.FC = () => {
       setMessage('');
       showSnackbar('Message sent successfully!', 'success');
     } catch (error) {
-      console.error('Failed to send message:', error);
       showSnackbar('Failed to send message', 'error');
     }
   };
@@ -188,7 +184,6 @@ const Chat: React.FC = () => {
       setIsLoadingMessages(true);
       await fetchMessages(conversation.id);
     } catch (error) {
-      console.error('Failed to fetch messages:', error);
       showSnackbar('Failed to load messages', 'error');
     } finally {
       setIsLoadingMessages(false);
@@ -236,44 +231,15 @@ const Chat: React.FC = () => {
             />
           </ListItem>
         ) : (
-          conversations.map((conversation) => {
-            const otherParticipant = conversation.participants.find(p => p.id !== user?.id);
-            
-            return (
-              <ListItem
-                key={conversation.id}
-                onClick={() => handleConversationSelect(conversation)}
-                sx={{
-                  cursor: 'pointer',
-                  backgroundColor: currentConversation?.id === conversation.id ? 'primary.light' : 'transparent',
-                  '&:hover': {
-                    backgroundColor: currentConversation?.id === conversation.id ? 'primary.light' : 'action.hover',
-                  },
-                }}
-              >
-                <ListItemAvatar>
-                  <Badge
-                    // TODO: Implement proper unread count logic
-                    // badgeContent={conversation.unreadCount}
-                    badgeContent={0}
-                    color="error"
-                    invisible={conversation.unreadCount === 0}
-                  >
-                    <Avatar>
-                      <PersonIcon />
-                    </Avatar>
-                  </Badge>
-                </ListItemAvatar>
-                <ListItemText
-                  primary={otherParticipant?.username || 'Unknown User'}
-                  secondary={conversation.lastMessage?.content || 'No messages yet'}
-                  primaryTypographyProps={{
-                    fontWeight: conversation.unreadCount > 0 ? 'bold' : 'normal',
-                  }}
-                />
-              </ListItem>
-            );
-          })
+          conversations.map((conversation) => (
+            <ConversationItem
+              key={conversation.id}
+              conversation={conversation}
+              currentUser={user}
+              isSelected={currentConversation?.id === conversation.id}
+              onClick={() => handleConversationSelect(conversation)}
+            />
+          ))
         )}
       </List>
     </Box>
@@ -398,34 +364,15 @@ const Chat: React.FC = () => {
                       .filter(m => m.conversationId === currentConversation.id)
                       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) // Sort by timestamp (oldest first)
                       .map((msg) => {
-                        // MESSAGE ALIGNMENT LOGIC:
-                        // - RIGHT SIDE (flex-end): Messages sent by current user (msg.senderId === user?.id)
-                        // - LEFT SIDE (flex-start): Messages sent by other users (msg.senderId !== user?.id)
                         const isCurrentUserMessage = msg.senderId === user?.id;
                         
                         return (
-                          <Box
+                          <Message
                             key={msg.id}
-                            sx={{
-                              display: 'flex',
-                              justifyContent: isCurrentUserMessage ? 'flex-end' : 'flex-start',
-                              mb: 1,
-                            }}
-                          >
-                            <Paper
-                              sx={{
-                                p: 1.5,
-                                maxWidth: '70%',
-                                backgroundColor: isCurrentUserMessage ? 'primary.main' : 'grey.100',
-                                color: isCurrentUserMessage ? 'white' : 'text.primary',
-                              }}
-                            >
-                              <Typography variant="body2">{msg.content}</Typography>
-                              <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                                {formatMessageTime(msg.createdAt)}
-                              </Typography>
-                            </Paper>
-                          </Box>
+                            message={msg}
+                            isCurrentUserMessage={isCurrentUserMessage}
+                            formatMessageTime={formatMessageTime}
+                          />
                         );
                       })}
                     <div ref={messagesEndRef} />

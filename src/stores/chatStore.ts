@@ -87,17 +87,21 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
             if (decryptedMessage) {
 
-              // Update message content for display
+              // Update message content for display, but preserve original encrypted content for tooltips
               processedMessage = {
                 ...message,
                 content: decryptedMessage.content,
-                contentForSender: decryptedMessage.content
+                contentForSender: decryptedMessage.content,
+                originalContent: message.content,           // Preserve original encrypted content
+                originalContentForSender: message.contentForSender  // Preserve original encrypted content
               };
             } else {
               processedMessage = {
                 ...message,
                 content: '❌ Failed to decrypt message',
-                contentForSender: '❌ Failed to decrypt message'
+                contentForSender: '❌ Failed to decrypt message',
+                originalContent: message.content,
+                originalContentForSender: message.contentForSender
               };
             }
           } else {
@@ -107,7 +111,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           processedMessage = {
             ...message,
             content: '❌ Error processing message',
-            contentForSender: '❌ Error processing message'
+            contentForSender: '❌ Error processing message',
+            originalContent: message.content,
+            originalContentForSender: message.contentForSender
           };
         }
       }
@@ -300,13 +306,15 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                 if (decryptedMessage) {
                   // Successfully decrypted lastMessage
                   
-                  // Update conversation with decrypted lastMessage
+                  // Update conversation with decrypted lastMessage, but preserve original encrypted content for tooltips
                   return {
                     ...conv,
                     lastMessage: {
                       ...conv.lastMessage,
                       content: decryptedMessage.content,
-                      contentForSender: decryptedMessage.content
+                      contentForSender: decryptedMessage.content,
+                      originalContent: conv.lastMessage.content,           // Preserve original encrypted content
+                      originalContentForSender: conv.lastMessage.contentForSender  // Preserve original encrypted content
                     }
                   };
                 } else {
@@ -315,7 +323,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                     lastMessage: {
                       ...conv.lastMessage,
                       content: '❌ Failed to decrypt message',
-                      contentForSender: '❌ Failed to decrypt message'
+                      contentForSender: '❌ Failed to decrypt message',
+                      originalContent: conv.lastMessage.content,
+                      originalContentForSender: conv.lastMessage.contentForSender
                     }
                   };
                 }
@@ -328,7 +338,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                 lastMessage: {
                   ...conv.lastMessage,
                   content: '❌ Error processing message',
-                  contentForSender: '❌ Error processing message'
+                  contentForSender: '❌ Error processing message',
+                  originalContent: conv.lastMessage.content,
+                  originalContentForSender: conv.lastMessage.contentForSender
                 }
               };
             }
@@ -395,17 +407,21 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                 if (decryptedMessage) {
                   // Successfully decrypted fetched message
 
-                  // Update message content for display
+                  // Update message content for display, but preserve original encrypted content for tooltips
                   normalizedMsg = {
                     ...normalizedMsg,
                     content: decryptedMessage.content,
-                    contentForSender: decryptedMessage.content
+                    contentForSender: decryptedMessage.content,
+                    originalContent: msg.content,           // Preserve original encrypted content
+                    originalContentForSender: msg.contentForSender  // Preserve original encrypted content
                   };
                 } else {
                   normalizedMsg = {
                     ...normalizedMsg,
                     content: '❌ Failed to decrypt message',
-                    contentForSender: '❌ Failed to decrypt message'
+                    contentForSender: '❌ Failed to decrypt message',
+                    originalContent: msg.content,
+                    originalContentForSender: msg.contentForSender
                   };
                 }
               } else {
@@ -415,7 +431,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
               normalizedMsg = {
                 ...normalizedMsg,
                 content: '❌ Error processing message',
-                contentForSender: '❌ Error processing message'
+                contentForSender: '❌ Error processing message',
+                originalContent: msg.content,
+                originalContentForSender: msg.contentForSender
               };
             }
           }
@@ -525,17 +543,21 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           const decryptedMessage = await decryptEncryptedMessage(contentToDecrypt, currentUserPrivateKey);
 
           if (decryptedMessage) {
-            // Update message content for display
+            // Update message content for display, but preserve original encrypted content for tooltips
             processedMessage = {
               ...message,
               content: decryptedMessage.content,
-              contentForSender: decryptedMessage.content
+              contentForSender: decryptedMessage.content,
+              originalContent: message.content,           // Preserve original encrypted content
+              originalContentForSender: message.contentForSender  // Preserve original encrypted content
             };
           } else {
             processedMessage = {
               ...message,
               content: '❌ Failed to decrypt message',
-              contentForSender: '❌ Failed to decrypt message'
+              contentForSender: '❌ Failed to decrypt message',
+              originalContent: message.content,
+              originalContentForSender: message.contentForSender
             };
           }
         }
@@ -543,7 +565,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         processedMessage = {
           ...message,
           content: '❌ Error processing message',
-          contentForSender: '❌ Error processing message'
+          contentForSender: '❌ Error processing message',
+          originalContent: message.content,
+          originalContentForSender: message.contentForSender
         };
       }
     }

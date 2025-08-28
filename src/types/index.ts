@@ -22,6 +22,10 @@ export interface Message {
   createdAt: string; // Changed from Date to string to match WebSocket message
   updatedAt?: string; // Made optional as it's not in WebSocket message
   // Removed timestamp and isRead as they don't exist in WebSocket message
+  
+  // Original encrypted content for tooltip display
+  originalContent?: string;
+  originalContentForSender?: string;
 }
 
 export interface Conversation {

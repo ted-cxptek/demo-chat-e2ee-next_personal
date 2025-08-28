@@ -270,6 +270,7 @@ export class ChatGatewayAPI {
         'Authorization': `Bearer ${token}`
       }
     };
+    console.log("🚀 ~ ChatGatewayAPI ~ getMessages ~ payloadWithToken:", payloadWithToken)
     return this.sendOnionRequest<MessagesResponse>(payloadWithToken);
   }
 
