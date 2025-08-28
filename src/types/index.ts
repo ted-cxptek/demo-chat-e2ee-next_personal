@@ -45,6 +45,15 @@ export interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  errorMessage: string | null;
+  successMessage: string | null;
+  login: (credentials: LoginCredentials) => Promise<void>;
+  register: (formData: RegisterFormData) => Promise<void>;
+  logout: () => void;
+  updateUser: (user: User) => void;
+  clearError: () => void;
+  clearSuccess: () => void;
+  setValidationError: (message: string) => void;
 }
 
 export interface LoginCredentials {
@@ -57,6 +66,12 @@ export interface RegisterCredentials {
   username: string;
   password: string;
   publicKey: string;
+}
+
+export interface RegisterFormData {
+  username: string;
+  password: string;
+  confirmPassword: string;
 }
 
 export interface ChatState {
@@ -86,14 +101,6 @@ export interface ChatApiResponse<T> {
   success: boolean;
   data?: T & { error?: string; message?: string };
   statusCode: number;
-}
-
-export interface GatewayApiResponse {
-  success: boolean;
-  data?: string; // stringified ChatApiResponse<T>
-  error?: string;
-  message?: string;
-  statusCode?: number;
 }
 
 

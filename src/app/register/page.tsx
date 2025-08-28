@@ -15,10 +15,11 @@ import {
 import NextLink from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '../../stores/authStore';
+import { RegisterFormData } from '../../types';
 import AuthWrapper from '../../components/AuthWrapper';
 
 const Register: React.FC = () => {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<RegisterFormData>({
     username: '',
     password: '',
     confirmPassword: '',

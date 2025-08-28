@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { ChatState, Conversation, Message, User } from '../types';
-import { chatGatewayAPI } from '../services/api';
+import { chatAPI } from '../services/api';
 import { websocketService } from '../services/websocketService';
 import {
   createSenderEncryptedMessage,
@@ -154,7 +154,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       if (!token) throw new Error('No authentication token');
 
       // Create conversation via API using receiverUsername
-      const newConversation = await chatGatewayAPI.createConversation(token, receiverUsername) as Conversation;
+      const newConversation = await chatAPI.createConversation(token, receiverUsername) as Conversation;
 
       // Add to local store
       await get().addConversation(newConversation);
@@ -240,7 +240,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       }
 
       // Send message via API
-      const newMessage = await chatGatewayAPI.sendMessage(token, conversationId, messageToSend) as Message;
+      const newMessage = await chatAPI.sendMessage(token, conversationId, messageToSend) as Message;
 
       // Message sent via API
 
@@ -271,7 +271,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       
       if (!token) throw new Error('No authentication token');
       
-      const response = await chatGatewayAPI.getConversations(token);
+      const response = await chatAPI.getConversations(token);
       
       // Handle the API response structure
       if (response && typeof response === 'object' && 'conversations' in response) {
@@ -370,7 +370,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
       if (!token) throw new Error('No authentication token');
 
-      const response = await chatGatewayAPI.getMessages(token, conversationId);
+      const response = await chatAPI.getMessages(token, conversationId);
 
       // Handle the API response structure
       if (response && typeof response === 'object' && 'messages' in response) {

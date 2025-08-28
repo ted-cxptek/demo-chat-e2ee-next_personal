@@ -1,14 +1,14 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AuthState, LoginCredentials, RegisterCredentials, User } from '../types';
-import { chatGatewayAPI, ApiError } from '../services/api';
+import { AuthState, LoginCredentials, RegisterFormData, User } from '../types';
+import { chatAPI, ApiError } from '../services/api';
 import { generateUserKeys, derivePublicKeyFromPrivateKey } from '../utils/crypto';
 
 interface AuthStore extends AuthState {
   errorMessage: string | null;
   successMessage: string | null;
   login: (credentials: LoginCredentials) => Promise<void>;
-  register: (credentials: RegisterCredentials) => Promise<void>;
+  register: (formData: RegisterFormData) => Promise<void>;
   logout: () => void;
   updateUser: (user: User) => void;
   setLoading: (loading: boolean) => void;
@@ -43,7 +43,7 @@ export const useAuthStore = create<AuthStore>()(
       login: async (credentials: LoginCredentials) => {
         set({ isLoading: true, errorMessage: null });
         try {
-          const response = await chatGatewayAPI.login(credentials);
+          const response = await chatAPI.login(credentials);
 
           const { user, token } = response;
           if(!user || !token) {
@@ -84,7 +84,7 @@ export const useAuthStore = create<AuthStore>()(
         }
       },
 
-      register: async (credentials: RegisterCredentials) => {
+      register: async (formData: RegisterFormData) => {
         set({ isLoading: true, errorMessage: null });
         try {
           // Generate ECC keypair for the user
@@ -92,11 +92,12 @@ export const useAuthStore = create<AuthStore>()(
           
           // Create enhanced credentials with generated public key
           const enhancedCredentials = {
-            ...credentials,
+            username: formData.username,
+            password: formData.password,
             publicKey: publicKeyHex,
           };
           
-          const response = await chatGatewayAPI.register(enhancedCredentials);
+          const response = await chatAPI.register(enhancedCredentials);
 
           const { user, token } = response;
           
